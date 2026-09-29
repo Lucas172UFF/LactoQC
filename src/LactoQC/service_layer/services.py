@@ -6,7 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from LactoQC.adapters.repository import AbstractAbstractCollectionPointRepository
+from LactoQC.adapters.repository import AbstractCollectionPointRepository
 from LactoQC.domain.models import (
     EXPECTED_UNITS,
     CollectionPoint,
