@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, date
 
 from flask import Blueprint, abort, jsonify, request
 
@@ -10,6 +10,11 @@ from LactoQC.service_layer import services
 
 bp = Blueprint("collection_points", __name__)
 
+def _parse_date(raw: str | None, field: str):
+    try:
+        return date.fromisoformat(raw)
+    except (TabError, ValueError):
+        raise ValueError(f"'{field}' must be an ISO 8601 date (e.g. 2026-09-29).")
 
 def _repo() -> AbstractCollectionPointRepository:
     return SqlAlchemyCollectionPointRepository(get_session())
@@ -79,6 +84,7 @@ def _collection_point_json(cp, detailed: bool = False) -> dict:
     if detailed:
         data["measurements"] = [_measurement_json(m) for m in cp.measurements]
         data["non_conformities"] = [_non_conformity_json(n) for n in cp.non_conformities]
+        data["daily_closures"] = [c.day.isoformat() for c in cp.daily_closures]
     return data
 
 
@@ -132,3 +138,14 @@ def list_non_conformities():
         collection_point_id=cp_id,
     )
     return jsonify([_non_conformity_json(n) for n in ncs]), 200
+
+@bp.post("/collection-points/<int:collection_point_id>/daily-closures")
+def close_daily_record(collection_point_id: int):
+    body = _json_body()
+    _require(body, "date")
+    session = get_session()
+    closure = services.close_daily_record(
+        SqlAlchemyCollectionPointRepository(session), session, collection_point_id,
+        day=_parse_date(body["date"], "date"),
+    )
+    return jsonify(collection_point_id=collection_point_id, date=closure.day.isoformat()), 201

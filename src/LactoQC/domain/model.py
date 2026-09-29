@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 
@@ -71,11 +71,16 @@ class NonConformity:
         self.description = description
 
 
+class DailyClosure:
+    def __init__(self, day:date):
+        self.day = day
+
+
 class CollectionPoint:
     def __init__(
         self, id_:int, name:str, location:str,
         measurements:list[Measurement] | None = None, specifications:list[Specification] | None = None, 
-        non_conformities:list[NonConformity] | None = None
+        non_conformities:list[NonConformity] | None = None, daily_closures:list[DailyClosure] | None=None, 
         ):
         self.id_ = id_
         self.name = name
@@ -83,6 +88,7 @@ class CollectionPoint:
         self.measurements = measurements if measurements is not None else []
         self.specifications = specifications if specifications is not None else []
         self.non_conformities = non_conformities if non_conformities is not None else []
+        self.daily_closures = daily_closures if daily_closures is not None else []
 
         self._validate_specifications()
 
@@ -93,7 +99,24 @@ class CollectionPoint:
                 raise ValueError(f"Specification for measurement type {measurement_type.value} is missing.")
             if count > 1:
                 raise ValueError(f"Specification for measurement type {measurement_type.value} is duplicated.")
+
+    def is_day_closed(self, day: date) -> bool:
+        return any(closure.day == day for closure in self.daily_closures)
+
+    def _verify_day_is_open(self, day: date):
+        if self.is_day_closed(day):
+            raise ValueError(f"Day {day} is already closed.")
     
+    def _verify_all_measurement_types_on(self, day: date):
+        measured_types = {
+            measurement.measurement_type for measurement in self.measurements if measurement.measurement_date.date() == day
+        }
+        for measurement_type in MeasurementType:
+            if measurement_type not in measured_types:
+                raise ValueError(
+                    f"Cannot close day {day}: missing {measurement_type.value} measurement."
+                )
+
     def check_for_non_conformity(self, measurement:Measurement):
         for specification in self.specifications:
             if specification.measurement_type == measurement.measurement_type:
@@ -109,7 +132,13 @@ class CollectionPoint:
                     )
                     self.non_conformities.append(non_conformity)
 
-    def add_measurement(self, measurement:Measurement):
+    def close_day(self, day:date):
+        self._verify_day_is_open(day)
+        self._verify_all_measurement_types_on(day)
+        self.daily_closures.append(DailyClosure(day))
+
+    def add_measurement(self, measurement: Measurement):
+        self._verify_day_is_open(measurement.measurement_date.date())
         self.measurements.append(measurement)
         self.check_for_non_conformity(measurement)
 
