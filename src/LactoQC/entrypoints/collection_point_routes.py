@@ -1,13 +1,12 @@
-"""Endpoints do Ponto de Coleta."""
 from __future__ import annotations
 
 from datetime import datetime
 
 from flask import Blueprint, abort, jsonify, request
 
-from LactoQC.adapters.repository import CollectionPointRepository
+from LactoQC.adapters.repository import AbstractCollectionPointRepository, SqlAlchemyCollectionPointRepository
 from LactoQC.entrypoints.flask_app import get_session
-from LactoQC.service_layer import collection_point_services as services
+from LactoQC.service_layer import services
 
 bp = Blueprint("collection_points", __name__)
 
