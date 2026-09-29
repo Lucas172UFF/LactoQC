@@ -1,4 +1,5 @@
 import pytest
+from datetime import date, datetime
 
 from LactoQC.domain.model import (
     CollectionPoint,
@@ -7,8 +8,8 @@ from LactoQC.domain.model import (
     Measurement,
     Specification,
     NonConformity,
+    DailyClosure
 )
-
 
 def make_chlorine_specification():
     return Specification(
@@ -32,6 +33,32 @@ def make_temperature_specification():
         measurement_unit=MeasurementUnit.CELSIUS,
         min_value=0.0,
         max_value=100.0
+    )
+
+def make_collection_point():
+    return CollectionPoint(
+        id_=1,
+        name="Sala 1",
+        location="Bloco A",
+        specifications=[
+            make_chlorine_specification(),
+            make_ph_specification(),
+            make_temperature_specification(),
+        ],
+    )
+
+def make_measurement(id_, measurement_type, day, value):
+    units = {
+        MeasurementType.CHLORINE: MeasurementUnit.MG_L,
+        MeasurementType.PH: None,
+        MeasurementType.TEMPERATURE: MeasurementUnit.CELSIUS,
+    }
+    return Measurement(
+        id_=id_,
+        measurement_date=datetime(day.year, day.month, day.day, 8, 0),
+        value=value,
+        measurement_unit=units[measurement_type],
+        measurement_type=measurement_type,
     )
     
 def test_create_ph_specification():
@@ -84,7 +111,7 @@ def test_specification_is_value_within_specification():
 def test_create_ph_measurement():
     measurement = Measurement(
         id_=1,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.PH,
         measurement_unit=None,
         value=7.0
@@ -97,7 +124,7 @@ def test_create_ph_measurement():
 def test_create_chlorine_measurement():
     measurement = Measurement(
         id_=2,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.CHLORINE,
         measurement_unit=MeasurementUnit.MG_L,
         value=0.3
@@ -110,7 +137,7 @@ def test_create_chlorine_measurement():
 def test_create_temperature_measurement():
     measurement = Measurement(
         id_=3,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.TEMPERATURE,
         measurement_unit=MeasurementUnit.CELSIUS,
         value=25.0
@@ -124,7 +151,7 @@ def test_measurement_rejects_invalid_unit_for_measurement_type():
     with pytest.raises(ValueError):
         Measurement(
             id_=4,
-            measurement_date="2024-06-01T12:00:00Z",
+            measurement_date=datetime(2024, 6, 1, 12, 0),
             measurement_type=MeasurementType.PH,
             measurement_unit=MeasurementUnit.MG_L,
             value=7.0
@@ -195,7 +222,7 @@ def test_add_measurement_to_collection_point():
     )
     measurement = Measurement(
         id_=5,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.PH,
         measurement_unit=None,
         value=7.0
@@ -218,7 +245,7 @@ def test_add_measurement_outside_min_value_specification_creates_non_conformity(
     )
     measurement = Measurement(
         id_=6,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.PH,
         measurement_unit=None,
         value=5.0 
@@ -244,7 +271,7 @@ def test_add_measurement_outside_max_value_specification_creates_non_conformity(
     )
     measurement = Measurement(
         id_=7,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.PH,
         measurement_unit=None,
         value=8.0 
@@ -270,14 +297,14 @@ def test_add_measurement_within_limit_values_specification_does_not_create_non_c
     )
     measurement = Measurement(
         id_=8,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.PH,
         measurement_unit=None,
         value=7.5
     )
     measurement2 = Measurement(
         id_=9,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.PH,
         measurement_unit=None,
         value=6.5
@@ -301,7 +328,7 @@ def test_add_chlorine_measurement_outside_specification_creates_non_conformity()
     )
     measurement = Measurement(
         id_=10,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.CHLORINE,
         measurement_unit=MeasurementUnit.MG_L,
         value=0.1 
@@ -327,7 +354,7 @@ def test_add_temperature_measurement_outside_specification_creates_non_conformit
     )
     measurement = Measurement(
         id_=11,
-        measurement_date="2024-06-01T12:00:00Z",
+        measurement_date=datetime(2024, 6, 1, 12, 0),
         measurement_type=MeasurementType.TEMPERATURE,
         measurement_unit=MeasurementUnit.CELSIUS,
         value=150.0 
@@ -338,3 +365,91 @@ def test_add_temperature_measurement_outside_specification_creates_non_conformit
     non_conformity = collection_point.non_conformities[0]
     assert non_conformity.measurement == measurement
     assert non_conformity.specification == specs[2]
+
+def test_close_day_with_all_measurement_types():
+    collection_point = make_collection_point()
+    day = date(2026, 9, 29)
+    
+    collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day, 0.3))
+    collection_point.add_measurement(make_measurement(2, MeasurementType.PH, day, 7.0))
+    collection_point.add_measurement(make_measurement(3, MeasurementType.TEMPERATURE, day, 25.0))
+
+    collection_point.close_day(day)
+
+    assert collection_point.is_day_closed(day)
+    assert len(collection_point.daily_closures) == 1
+    assert isinstance(collection_point.daily_closures[0], DailyClosure)
+
+def test_close_day_missing_measurement_typ_raises():
+
+    with pytest.raises(ValueError):
+        collection_point = make_collection_point()
+        day = date(2026, 9, 29)
+        
+        collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day, 0.3))
+
+        collection_point.close_day(day)
+
+def test_closed_day_ignores_measurements_from_other_days():
+    
+    with pytest.raises(ValueError):
+        collection_point = make_collection_point()
+        day0 = date(2026, 9, 29)
+        day1 = date(2026, 9, 30)
+
+        collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day0, 0.3))
+        collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day1, 0.3))
+
+        collection_point.close_day(day0)
+
+def test_close_day_twice_raises():
+
+    collection_point = make_collection_point()
+    day = date(2026, 9, 29)
+    
+    collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day, 0.3))
+    collection_point.add_measurement(make_measurement(2, MeasurementType.PH, day, 7.0))
+    collection_point.add_measurement(make_measurement(3, MeasurementType.TEMPERATURE, day, 25.0))
+
+    collection_point.close_day(day)
+
+    with pytest.raises(ValueError):
+        collection_point.close_day(day)
+
+
+def test_add_measurement_on_closed_day_raises():
+
+    collection_point = make_collection_point()
+    day = date(2026, 9, 29)
+    
+    collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day, 0.3))
+    collection_point.add_measurement(make_measurement(2, MeasurementType.PH, day, 7.0))
+    collection_point.add_measurement(make_measurement(3, MeasurementType.TEMPERATURE, day, 25.0))
+
+    collection_point.close_day(day)
+
+    with pytest.raises(ValueError):
+        collection_point.add_measurement(make_measurement(4, MeasurementType.PH, day, 7.0))
+    
+    assert len(collection_point.measurements) == 3
+
+def test_add_measurement_on_other_day_after_closing_is_allowed():
+    collection_point = make_collection_point()
+    day = date(2026, 9, 29)
+    next_day = date(2026, 9, 30)
+    collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day, 0.3))
+    collection_point.add_measurement(make_measurement(2, MeasurementType.PH, day, 7.0))
+    collection_point.add_measurement(make_measurement(3, MeasurementType.TEMPERATURE, day, 25.0))
+    collection_point.close_day(day)
+
+    collection_point.add_measurement(make_measurement(4, MeasurementType.PH, next_day, 7.0))
+
+    assert len(collection_point.measurements) == 4
+    assert not collection_point.is_day_closed(next_day)
+
+
+def test_new_collection_point_has_no_closed_days():
+    collection_point = make_collection_point()
+
+    assert collection_point.daily_closures == []
+    assert not collection_point.is_day_closed(date(2026, 9, 29))
