@@ -1,19 +1,18 @@
-"""Endpoints do Ponto de Coleta."""
 from __future__ import annotations
 
 from datetime import datetime
 
 from flask import Blueprint, abort, jsonify, request
 
-from LactoQC.adapters.repository import CollectionPointRepository
+from LactoQC.adapters.repository import AbstractCollectionPointRepository, SqlAlchemyCollectionPointRepository
 from LactoQC.entrypoints.flask_app import get_session
-from LactoQC.service_layer import collection_point_services as services
+from LactoQC.service_layer import services
 
 bp = Blueprint("collection_points", __name__)
 
 
-def _repo() -> CollectionPointRepository:
-    return CollectionPointRepository(get_session())
+def _repo() -> AbstractCollectionPointRepository:
+    return SqlAlchemyCollectionPointRepository(get_session())
 
 
 def _json_body() -> dict:
@@ -91,7 +90,7 @@ def create_collection_point():
         abort(400, description="'specifications' must be a list.")
     session = get_session()
     cp = services.create_collection_point(
-        CollectionPointRepository(session), session,
+        SqlAlchemyCollectionPointRepository(session), session,
         name=body["name"], location=body["location"], specifications=body["specifications"],
     )
     return jsonify(_collection_point_json(cp)), 201
@@ -109,7 +108,7 @@ def register_measurement(collection_point_id: int):
     _require(body, "measurement_type", "value")
     session = get_session()
     measurement, new_ncs = services.register_measurement(
-        CollectionPointRepository(session), session, collection_point_id,
+        SqlAlchemyCollectionPointRepository(session), session, collection_point_id,
         measurement_type=body["measurement_type"], value=body["value"],
         measurement_date=_parse_datetime(body.get("measurement_date"), "measurement_date"),
     )
