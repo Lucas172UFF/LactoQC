@@ -1,5 +1,5 @@
 import abc
-from LactoQC.domain.models import CollectionPoint
+from LactoQC.domain.model import CollectionPoint
 
 class AbstractCollectionPointRepository(abc.ABC):
     @abc.abstractmethod
