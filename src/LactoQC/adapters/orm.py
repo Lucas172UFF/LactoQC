@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Column, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
 from sqlalchemy.orm import relationship, registry
 from LactoQC.domain.model import (
     CollectionPoint,
@@ -7,6 +7,7 @@ from LactoQC.domain.model import (
     MeasurementUnit,
     Measurement,
     NonConformity,
+    DailyClosure
 )
 
 mapper_registry = registry()
@@ -53,6 +54,15 @@ non_conformities_table = Table(
     Column("description", Text, nullable=False),                                               
 )
 
+daily_closures_table = Table(
+    "daily_closures",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("collection_point_id", Integer, ForeignKey("collection_points.id"), nullable=False),
+    Column("day", Date, nullable=False),
+    UniqueConstraint("collection_point_id", "day"),
+)
+
 def start_mappers():
     mapper_registry.map_imperatively(
         Specification,
@@ -75,6 +85,11 @@ def start_mappers():
         },
     )
     mapper_registry.map_imperatively(
+        DailyClosure,
+        daily_closures_table,
+        properties={"_id": daily_closures_table.c.id}
+    )
+    mapper_registry.map_imperatively(
         CollectionPoint,
         collection_points_table,
         properties={
@@ -82,5 +97,6 @@ def start_mappers():
             "specifications": relationship(Specification, order_by=specifications_table.c.id),
             "measurements": relationship(Measurement, order_by=measurements_table.c.id),
             "non_conformities": relationship(NonConformity, order_by=non_conformities_table.c.number),
+            "daily_closures": relationship(DailyClosure, order_by=daily_closures_table.c.day),
         },
     )
