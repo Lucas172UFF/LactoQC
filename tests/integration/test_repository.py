@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from LactoQC.adapters.repository import SqlAlchemyCollectionPointRepository
-from LactoQC.domain.models import (
+from LactoQC.domain.model import (
     CollectionPoint,
     Measurement,
     MeasurementType,

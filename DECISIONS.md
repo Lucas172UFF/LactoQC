@@ -147,7 +147,7 @@ O workflow:
 
 ### Arquivos trabalhados
 
-- `src/LactoQC/domain/models.py`
+- `src/LactoQC/domain/model.py`
 - `tests/unit/test_collection_point.py`
 - `pytest.ini`
 - `.github/workflows/tests.yml`

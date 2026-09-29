@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import text
-from LactoQC.domain.models import (
+from LactoQC.domain.model import (
     CollectionPoint,
     Measurement,
     MeasurementType,

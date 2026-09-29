@@ -1,6 +1,6 @@
 import pytest
 
-from LactoQC.domain.models import (
+from LactoQC.domain.model import (
     CollectionPoint,
     MeasurementType,
     MeasurementUnit,
