@@ -7,6 +7,7 @@
 | Lucas Ardelino Alves da Silva | Lucas172UFF | ardelino_lucas@id.uff.br |
 | João Gabriel Pimentel | JoaogPimentel | j_gabriel@id.uff.br |
 | Aloysio Felipe Saad Silva | AloysioSaad | aloysiosaad@id.uff.br |
+| André Meschesi Dantas | meschesiandre-maker | meschesiandre@id.uff.br |
 
 ## 2. Sistema proposto
 
@@ -14,11 +15,9 @@
 
 O LactoQC é um sistema de controle de qualidade para uma indústria de laticínios.
 
-O projeto foi inspirado na rotina de uma fábrica que recebe leite em pó a granel e realiza o reenvase do produto para diferentes marcas.
+O projeto foi inspirado na rotina de uma fábrica que recebe leite em pó a granel e realiza o reenvase do produto para diferentes marcas. Atualmente, parte do controle de qualidade é realizado utilizando registros manuais e planilhas.
 
-Atualmente, parte do controle de qualidade é realizado utilizando registros manuais e planilhas.
-
-O objetivo do sistema é representar de forma simplificada esse processo e aplicar regras de negócio relacionadas à aprovação de matérias-primas, controle de produção e monitoramento da fábrica.
+O objetivo do sistema é representar, de forma simplificada, esse processo e aplicar regras de negócio relacionadas à aprovação de matérias-primas, controle de produção e monitoramento da fábrica.
 
 O sistema não é apenas um cadastro de informações. Existem regras que precisam ser protegidas, como:
 
@@ -32,18 +31,18 @@ O sistema não é apenas um cadastro de informações. Existem regras que precis
 
 O domínio possui inicialmente as seguintes entidades:
 
-1. Recebimento de matéria-prima
-2. Lote de produção
-3. Ponto de coleta
-4. Medição
-5. Lecitinização
-6. Amostra de peso
-7. Não conformidade
-8. Especificação
+1. Recebimento de matéria-prima;
+2. Lote de produção;
+3. Ponto de coleta;
+4. Medição;
+5. Lecitinização;
+6. Amostra de peso;
+7. Não conformidade;
+8. Especificação.
 
-## 4. Agregados de domínio
+## 4. Agregados e módulos do sistema
 
-O sistema será organizado inicialmente em três agregados.
+O sistema será organizado em três agregados de domínio e um módulo técnico compartilhado.
 
 ### 4.1 Recebimento de matéria-prima
 
@@ -63,8 +62,6 @@ Responsável por decidir se um lote recebido pode ser utilizado na produção.
 
 Lucas Ardelino Alves da Silva.
 
----
-
 ### 4.2 Ponto de coleta
 
 Responsável pelo monitoramento das condições da fábrica.
@@ -80,8 +77,6 @@ Responsável pelo monitoramento das condições da fábrica.
 #### Responsável
 
 João Gabriel Pimentel.
-
----
 
 ### 4.3 Lote de produção
 
@@ -99,13 +94,28 @@ Responsável pelo controle de qualidade de cada ordem de produção.
 
 #### Responsável
 
-Aloysio Saad
+Aloysio Felipe Saad Silva.
+
+### 4.4 Infraestrutura compartilhada e API
+
+Este módulo não representa um agregado de negócio. Ele concentra os componentes técnicos compartilhados necessários para integrar os agregados e disponibilizar suas operações pela API.
+
+#### Responsabilidades
+
+- Configurar o mapeamento objeto-relacional com SQLAlchemy em `adapters/orm.py`.
+- Criar e manter abstrações compartilhadas de repositório em `adapters/repository.py`.
+- Configurar a aplicação Flask em `entrypoints/flask_app.py`.
+- Implementar os casos de uso e endpoints relacionados ao Ponto de Coleta.
+- Criar os testes e2e da API.
+- Apoiar a integração entre os três agregados e a execução da suíte completa de testes.
+
+#### Responsável
+
+André Meschesi Dantas.
 
 ## 5. Especificação
 
-A especificação representa as faixas aceitáveis para diferentes medições.
-
-Inicialmente, ela será utilizada como uma configuração compartilhada pelos três agregados.
+A especificação representa as faixas aceitáveis para diferentes medições. Inicialmente, será utilizada como configuração compartilhada pelos três agregados.
 
 Na Fase 2, caso seja necessário versionar diferentes especificações por produto ou processo, sua modelagem poderá ser revista.
 
@@ -128,27 +138,11 @@ Na Fase 2, caso seja necessário versionar diferentes especificações por produ
 
 ## 7. Divisão de responsabilidades
 
-Cada integrante será responsável principalmente por um agregado.
+A divisão abaixo define os agregados e módulos pelos quais cada integrante será responsável na Fase 1.
 
-| Integrante | Agregado |
-|---|---|
-| Lucas Ardelino | Recebimento de matéria-prima |
-| João Gabriel | Ponto de coleta |
-| Aloysio Saad| Lote de produção |
-
-A responsabilidade acompanha o agregado ao longo das fases do projeto.
-
-Isso significa que cada integrante participará da implementação de:
-
-- modelo de domínio;
-- testes unitários;
-- repositório;
-- testes de integração;
-- camada de serviço;
-- endpoints relacionados ao agregado;
-- testes de ponta a ponta;
-- evoluções da Fase 2 relacionadas ao mesmo agregado.
-
-Dessa forma, todos os integrantes terão participação técnica contínua ao longo dos checkpoints.
-
-Alterações nessa divisão serão documentadas no DECISIONS.md.
+| Integrante | GitHub | Agregado(s) ou módulo(s) | Responsabilidades na Fase 1 |
+|---|---|---|---|
+| Lucas Ardelino Alves da Silva | Lucas172UFF | Recebimento de matéria-prima | Modelo de domínio, testes unitários, repositório, testes de integração e casos de uso/endpoints do agregado. |
+| João Gabriel Pimentel | JoaogPimentel | Ponto de coleta | Modelo de domínio, manutenção das regras do agregado, repositório e testes de integração. |
+| Aloysio Felipe Saad Silva | AloysioSaad | Lote de produção | Modelo de domínio, testes unitários, repositório, testes de integração e casos de uso/endpoints do agregado. |
+| André Meschesi Dantas | meschesiandre-maker | Infraestrutura compartilhada e API do Ponto de Coleta | Mapeamento ORM, abstrações compartilhadas de repositório, configuração da API Flask, casos de uso/endpoints do Ponto de Coleta e testes e2e. |
