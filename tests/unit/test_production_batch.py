@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from LactoQC.domain.models import (
+from LactoQC.domain.model import (
     BatchNonConformity,
     BatchStatus,
     Lecithinization,
