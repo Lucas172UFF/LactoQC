@@ -14,7 +14,7 @@ class MeasurementUnit(Enum):
 
 EXPECTED_UNITS = {
     MeasurementType.CHLORINE: MeasurementUnit.MG_L,
-    MeasurementType.PH: None,  # pH is unitless
+    MeasurementType.PH: None, 
     MeasurementType.TEMPERATURE: MeasurementUnit.CELSIUS,
 }
 
