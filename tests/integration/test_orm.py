@@ -89,20 +89,20 @@ def test_orm_saves_non_conformity_linked_to_measurement(session):
         "SELECT number, measurement_id FROM non_conformities"
     ))) == [(1, 10)]
 
-    def make_batch_for_orm(session, id_=1, batch_number="PB-001"):
-        receipt = RawMaterialReceipt(id_=id_, status=RawMaterialReceiptStatus.APPROVED)
-        session.add(receipt)
-        session.flush()
+def make_batch_for_orm(session, id_=1, batch_number="PB-001"):
+    receipt = RawMaterialReceipt(id_=id_, status=RawMaterialReceiptStatus.APPROVED)
+    session.add(receipt)
+    session.flush()
 
-        batch = ProductionBatch(
-            id_=id_,
-            batch_number=batch_number,
-            production_date=datetime(2026, 9, 25),
-            milk_type=MilkType.COW,
-            raw_material_receipt=receipt,
-            expected_weight=100.0,
-        )
-        return batch
+    batch = ProductionBatch(
+        id_=id_,
+        batch_number=batch_number,
+        production_date=datetime(2026, 9, 25),
+        milk_type=MilkType.COW,
+        raw_material_receipt=receipt,
+        expected_weight=100.0,
+    )
+    return batch
 
 
 def test_can_save_a_production_batch(sqlite_session_production_batch):

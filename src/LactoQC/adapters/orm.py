@@ -164,7 +164,7 @@ def start_mappers_production_batch():
         raw_material_receipts,
     )
  
-    mapper_registry.map_imperatively(RawMaterialReceipt, weight_samples)
+    mapper_registry.map_imperatively(WeightSample, weight_samples)
     mapper_registry.map_imperatively(Lecithinization, lecithinizations)
     mapper_registry.map_imperatively(BatchNonConformity, batch_non_conformities)
  

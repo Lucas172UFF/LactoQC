@@ -1,7 +1,8 @@
 import pytest
 from datetime import datetime, date
+from sqlalchemy import text
 
-from LactoQC.adapters.repository import SqlAlchemyCollectionPointRepository
+from LactoQC.adapters.repository import SqlAlchemyCollectionPointRepository, SqlAlchemyProductionBatchRepository
 from LactoQC.domain.model import (
     CollectionPoint,
     Measurement,
