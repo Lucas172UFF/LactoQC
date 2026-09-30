@@ -1,7 +1,7 @@
 """Casos de uso do Ponto de Coleta. Recebem repositório e sessão; o commit é feito aqui."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from LactoQC.domain.model import (
     MeasurementType,
     NonConformity,
     Specification,
+    DailyClosure
 )
 
 
@@ -106,3 +107,10 @@ def list_non_conformities(
             if (start is None or nc.measurement.measurement_date >= start)
             and (end is None or nc.measurement.measurement_date <= end)
         ]
+
+def close_daily_record(repo: AbstractCollectionPointRepository, session:Session, collection_point_id: int, day: date):
+    collection_point = get_collection_point(repo, collection_point_id)
+    collection_point.close_day(day)
+    session.commit()
+    return collection_point.daily_closures[-1]
+
