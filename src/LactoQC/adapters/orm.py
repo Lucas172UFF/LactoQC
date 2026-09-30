@@ -84,3 +84,83 @@ def start_mappers():
             "non_conformities": relationship(NonConformity, order_by=non_conformities_table.c.number),
         },
     )
+raw_material_receipts = Table(
+    "raw_material_receipts",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=False),
+    Column("status", SqlEnum(RawMaterialReceiptStatus), nullable=False),
+)
+ 
+production_batches = Table(
+    "production_batches",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=False),
+    Column("batch_number", String(64), unique=True, nullable=False),
+    Column("production_date", DateTime, nullable=False),
+    Column("milk_type", SqlEnum(MilkType), nullable=False),
+    Column("raw_material_receipt_id", Integer, ForeignKey("raw_material_receipts.id_"), nullable=False),
+    Column("expected_weight", Float, nullable=False),
+    Column("wettability_result", SqlEnum(TestResult), nullable=False, default=TestResult.PENDING),
+    Column("status", SqlEnum(BatchStatus), nullable=False, default=BatchStatus.OPEN),
+)
+ 
+weight_samples = Table(
+    "weight_samples",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=True),
+    Column("batch_id", Integer, ForeignKey("production_batches.id_"), nullable=False),
+    Column("date_time", DateTime, nullable=False),
+    Column("weight_kg", Float, nullable=False),
+)
+ 
+lecithinizations = Table(
+    "lecithinizations",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=True),
+    Column("batch_id", Integer, ForeignKey("production_batches.id_"), unique=True, nullable=False),
+    Column("performed", Boolean, nullable=False),
+    Column("date_time", DateTime, nullable=True),
+    Column("responsible", String(128), nullable=True),
+)
+ 
+batch_non_conformities = Table(
+    "batch_non_conformities",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=True),
+    Column("batch_id", Integer, ForeignKey("production_batches.id_"), nullable=False),
+    Column("description", String(512), nullable=False),
+)
+ 
+ 
+def start_mappers_production_batch():
+    receipt_mapper = mapper_registry.map_imperatively(
+        RawMaterialReceipt,
+        raw_material_receipts,
+    )
+ 
+    mapper_registry.map_imperatively(WeightSample, weight_samples)
+    mapper_registry.map_imperatively(Lecithinization, lecithinizations)
+    mapper_registry.map_imperatively(BatchNonConformity, batch_non_conformities)
+ 
+    mapper_registry.map_imperatively(
+        ProductionBatch,
+        production_batches,
+        properties={
+            "raw_material_receipt": relationship(receipt_mapper),
+            "weight_samples": relationship(
+                WeightSample,
+                collection_class=list,
+                cascade="all, delete-orphan",
+            ),
+            "lecithinization": relationship(
+                Lecithinization,
+                uselist=False,
+                cascade="all, delete-orphan",
+            ),
+            "non_conformities": relationship(
+                BatchNonConformity,
+                collection_class=list,
+                cascade="all, delete-orphan",
+            ),
+        },
+    )

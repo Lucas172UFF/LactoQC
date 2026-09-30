@@ -1,29 +1,58 @@
-import abc
-from LactoQC.domain.model import CollectionPoint
+from abc import ABC, abstractmethod
+from typing import List, Optional
 
-class AbstractCollectionPointRepository(abc.ABC):
-    @abc.abstractmethod
-    def add(self, collection_point: CollectionPoint) -> None:
+from sqlalchemy.orm import Session
+
+from LactoQC.domain.model import ProductionBatch
+
+
+class AbstractProductionBatchRepository(ABC):
+
+    @abstractmethod
+    def add(self, batch: ProductionBatch) -> None:
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def get(self, id_: int) -> CollectionPoint | None:
+    @abstractmethod
+    def get(self, batch_number: str) -> Optional[ProductionBatch]:
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def list(self) -> list[CollectionPoint]:
+    @abstractmethod
+    def list(self) -> List[ProductionBatch]:
         raise NotImplementedError
 
 
-class SqlAlchemyCollectionPointRepository(AbstractCollectionPointRepository):
-    def __init__(self, session):
+class SqlAlchemyProductionBatchRepository(AbstractProductionBatchRepository):
+
+    def __init__(self, session: Session):
         self.session = session
 
-    def add(self, collection_point: CollectionPoint) -> None:
-        self.session.add(collection_point)
+    def add(self, batch: ProductionBatch) -> None:
+        self.session.add(batch)
 
-    def get(self, id_: int) -> CollectionPoint | None:
-        return self.session.get(CollectionPoint, id_)
+    def get(self, batch_number: str) -> Optional[ProductionBatch]:
+        return (
+            self.session.query(ProductionBatch)
+            .filter_by(batch_number=batch_number)
+            .first()
+        )
 
-    def list(self) -> list[CollectionPoint]:
-        return self.session.query(CollectionPoint).order_by(CollectionPoint.id_).all()
+    def list(self) -> List[ProductionBatch]:
+        return self.session.query(ProductionBatch).all()
+
+
+class FakeProductionBatchRepository(AbstractProductionBatchRepository):
+
+    def __init__(self, batches: Optional[List[ProductionBatch]] = None):
+        self._batches = set(batches) if batches else set()
+
+    def add(self, batch: ProductionBatch) -> None:
+        self._batches.add(batch)
+
+    def get(self, batch_number: str) -> Optional[ProductionBatch]:
+        return next(
+            (b for b in self._batches if b.batch_number == batch_number),
+            None,
+        )
+
+    def list(self) -> List[ProductionBatch]:
+        return list(self._batches)
