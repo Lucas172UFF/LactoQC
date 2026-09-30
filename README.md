@@ -15,15 +15,15 @@
 
 O LactoQC é um sistema de controle de qualidade para uma indústria de laticínios.
 
-O projeto foi inspirado na rotina de uma fábrica que recebe leite em pó a granel e realiza o reenvase do produto para diferentes marcas. Atualmente, parte do controle de qualidade é realizado utilizando registros manuais e planilhas.
+O projeto foi inspirado na rotina de uma fábrica que recebe leite em pó a granel e realiza o reenvase do produto para diferentes marcas. Atualmente, parte do controle de qualidade é realizada utilizando registros manuais e planilhas.
 
-O objetivo do sistema é representar, de forma simplificada, esse processo e aplicar regras de negócio relacionadas à aprovação de matérias-primas, controle de produção e monitoramento da fábrica.
+O objetivo do sistema é representar, de forma simplificada, esse processo e aplicar regras de negócio relacionadas à aprovação de matérias-primas, ao controle de produção e ao monitoramento da fábrica.
 
 O sistema não é apenas um cadastro de informações. Existem regras que precisam ser protegidas, como:
 
 - faixas aceitáveis para medições;
 - aprovação ou reprovação automática;
-- obrigatoriedade de determinados testes;
+- obrigatoriedade de testes;
 - restrições para liberação de lotes;
 - criação automática de não conformidades.
 
@@ -42,11 +42,11 @@ O domínio do sistema possui inicialmente as seguintes entidades:
 
 ## 4. Agregados e módulos do sistema
 
-O sistema será organizado em três agregados de domínio e um módulo técnico compartilhado.
+O sistema é organizado em três agregados de domínio e um módulo técnico compartilhado.
 
 ### 4.1 Recebimento de matéria-prima
 
-Responsável por decidir se um lote recebido pode ser utilizado na produção.
+Responsável por registrar e avaliar a qualidade da matéria-prima antes de ela ser utilizada na produção.
 
 #### Regras de negócio
 
@@ -55,8 +55,9 @@ Responsável por decidir se um lote recebido pode ser utilizado na produção.
 - Acidez deve respeitar o limite máximo definido.
 - Partículas queimadas devem permanecer dentro do limite aceitável.
 - O teste de antibiótico deve ser negativo.
-- Um resultado positivo para antibiótico reprova automaticamente o lote.
-- O lote só pode ser aprovado após a realização de todos os testes obrigatórios.
+- Um resultado positivo para antibiótico reprova automaticamente o recebimento.
+- Um recebimento só pode ser aprovado após a realização de todos os testes obrigatórios.
+- Um lote de produção somente pode utilizar matéria-prima aprovada.
 
 #### Responsável
 
@@ -98,16 +99,15 @@ Aloysio Felipe Saad Silva.
 
 ### 4.4 Infraestrutura compartilhada e API
 
-Este módulo não representa um agregado de negócio. Ele concentra os componentes técnicos compartilhados necessários para integrar os agregados e disponibilizar suas operações pela API.
+Este módulo concentra os componentes técnicos compartilhados necessários para integrar os agregados e disponibilizar operações pela API.
 
 #### Responsabilidades
 
 - Configurar o mapeamento objeto-relacional com SQLAlchemy em `adapters/orm.py`.
-- Criar e manter abstrações compartilhadas de repositório em `adapters/repository.py`.
+- Criar e manter abstrações de repositório em `adapters/repository.py`.
 - Configurar a aplicação Flask em `entrypoints/flask_app.py`.
-- Implementar os casos de uso e endpoints relacionados ao Ponto de Coleta.
-- Criar os testes end-to-end da API.
-- Apoiar a integração entre os três agregados e a execução da suíte completa de testes.
+- Implementar os casos de uso, rotas e testes end-to-end da API do Ponto de Coleta.
+- Apoiar a integração entre os agregados e a execução da suíte de testes.
 - Manter a automação de testes no GitHub Actions.
 
 #### Responsável
@@ -116,9 +116,9 @@ André Meschesi Dantas.
 
 ## 5. Especificação
 
-A especificação representa as faixas aceitáveis para diferentes medições. Inicialmente, será utilizada como configuração compartilhada pelos três agregados.
+A especificação representa as faixas aceitáveis para diferentes medições. Inicialmente, ela é utilizada como configuração compartilhada pelos agregados.
 
-Na Fase 2, caso seja necessário versionar diferentes especificações por produto ou processo, sua modelagem poderá ser revista.
+Na Fase 2, caso seja necessário versionar especificações por produto ou processo, sua modelagem poderá ser revista.
 
 ## 6. Casos de uso previstos
 
@@ -139,25 +139,18 @@ Na Fase 2, caso seja necessário versionar diferentes especificações por produ
 
 ## 7. Divisão de responsabilidades
 
-| Integrante | GitHub | Agregado(s) ou módulo(s) | Responsabilidades na Fase 1 |
-|---|---|---|---|
-| Lucas Ardelino Alves da Silva | Lucas172UFF | Recebimento de matéria-prima | Modelo de domínio, testes unitários, repositório, testes de integração e casos de uso do agregado. |
-| João Gabriel Pimentel | JoaogPimentel | Ponto de coleta | Modelo de domínio, regras do agregado, especificações, medições, não conformidades, repositório e testes de integração. |
-| Aloysio Felipe Saad Silva | AloysioSaad | Lote de produção | Modelo de domínio, testes unitários, regras de liberação, amostras de peso, lecitinização e testes relacionados ao agregado. |
-| André Meschesi Dantas | meschesiandre-maker | Infraestrutura compartilhada e API do Ponto de Coleta | ORM, abstrações de repositório, configuração Flask, serviços e endpoints do Ponto de Coleta, testes e2e e integração da aplicação. |
+| Integrante | Módulo principal | Responsabilidades na Fase 1 |
+|---|---|---|
+| Lucas Ardelino Alves da Silva | Recebimento de matéria-prima | Evolução do agregado de recebimento, regras de aprovação/reprovação, resultados de testes obrigatórios e testes unitários relacionados. |
+| João Gabriel Pimentel | Ponto de coleta | Modelo de domínio do Ponto de Coleta, especificações, medições, não conformidades e testes de integração do agregado. |
+| Aloysio Felipe Saad Silva | Lote de produção | Modelo de domínio do Lote de Produção, peso, lecitinização, liberação/reprovação e testes unitários do agregado. |
+| André Meschesi Dantas | Infraestrutura compartilhada e API | ORM, abstrações de repositório, configuração Flask, serviços, rotas, testes e2e e integração da API do Ponto de Coleta. |
 
-## 8. Uso de Inteligência Artificial
+Todos os integrantes participam da revisão do código, documentação, integração e execução da suíte de testes.
 
-Foi utilizada inteligência artificial generativa como ferramenta de apoio ao desenvolvimento, dentro dos limites permitidos para a disciplina.
+## 8. Estrutura do projeto
 
-O uso incluiu esclarecimento de conceitos de arquitetura em camadas, DDD, TDD, SQLAlchemy, Flask, pytest, revisão de estrutura de código, discussão de regras de negócio e apoio na elaboração e revisão de testes.
-
-As decisões sobre o domínio, a organização do projeto, a validação das regras de negócio e a integração final foram revisadas pelos integrantes do grupo.
-
-## 9. Estrutura do projeto
-
-O projeto utiliza uma organização em camadas, separando regras de domínio, persistência, serviços de aplicação, interface HTTP e testes.
-
+```text
 LactoQC/
 ├── .github/
 │   └── workflows/
