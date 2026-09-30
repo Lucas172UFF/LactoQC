@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Table, Text, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Boolean, Table, Text, UniqueConstraint
 from sqlalchemy.orm import relationship, registry
 from LactoQC.domain.model import (
     CollectionPoint,
@@ -7,7 +7,17 @@ from LactoQC.domain.model import (
     MeasurementUnit,
     Measurement,
     NonConformity,
-    DailyClosure
+    DailyClosure,
+    RawMaterialReceiptStatus,
+    MilkType, 
+    TestResult, 
+    BatchStatus,
+    RawMaterialReceipt,
+    Lecithinization,
+    BatchNonConformity, 
+    ProductionBatch,
+    WeightSample
+
 )
 
 mapper_registry = registry()
@@ -98,5 +108,85 @@ def start_mappers():
             "measurements": relationship(Measurement, order_by=measurements_table.c.id),
             "non_conformities": relationship(NonConformity, order_by=non_conformities_table.c.number),
             "daily_closures": relationship(DailyClosure, order_by=daily_closures_table.c.day),
+        },
+    )
+raw_material_receipts = Table(
+    "raw_material_receipts",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=False),
+    Column("status", Enum(RawMaterialReceiptStatus), nullable=False),
+)
+ 
+production_batches = Table(
+    "production_batches",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=False),
+    Column("batch_number", String(64), unique=True, nullable=False),
+    Column("production_date", DateTime, nullable=False),
+    Column("milk_type", Enum(MilkType), nullable=False),
+    Column("raw_material_receipt_id", Integer, ForeignKey("raw_material_receipts.id_"), nullable=False),
+    Column("expected_weight", Float, nullable=False),
+    Column("wettability_result", Enum(TestResult), nullable=False, default=TestResult.PENDING),
+    Column("status", Enum(BatchStatus), nullable=False, default=BatchStatus.OPEN),
+)
+ 
+weight_samples = Table(
+    "weight_samples",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=True),
+    Column("batch_id", Integer, ForeignKey("production_batches.id_"), nullable=False),
+    Column("date_time", DateTime, nullable=False),
+    Column("weight_kg", Float, nullable=False),
+)
+ 
+lecithinizations = Table(
+    "lecithinizations",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=True),
+    Column("batch_id", Integer, ForeignKey("production_batches.id_"), unique=True, nullable=False),
+    Column("performed", Boolean, nullable=False),
+    Column("date_time", DateTime, nullable=True),
+    Column("responsible", String(128), nullable=True),
+)
+ 
+batch_non_conformities = Table(
+    "batch_non_conformities",
+    metadata,
+    Column("id_", Integer, primary_key=True, autoincrement=True),
+    Column("batch_id", Integer, ForeignKey("production_batches.id_"), nullable=False),
+    Column("description", String(512), nullable=False),
+)
+ 
+ 
+def start_mappers_production_batch():
+    receipt_mapper = mapper_registry.map_imperatively(
+        RawMaterialReceipt,
+        raw_material_receipts,
+    )
+ 
+    mapper_registry.map_imperatively(WeightSample, weight_samples)
+    mapper_registry.map_imperatively(Lecithinization, lecithinizations)
+    mapper_registry.map_imperatively(BatchNonConformity, batch_non_conformities)
+ 
+    mapper_registry.map_imperatively(
+        ProductionBatch,
+        production_batches,
+        properties={
+            "raw_material_receipt": relationship(receipt_mapper),
+            "weight_samples": relationship(
+                WeightSample,
+                collection_class=list,
+                cascade="all, delete-orphan",
+            ),
+            "lecithinization": relationship(
+                Lecithinization,
+                uselist=False,
+                cascade="all, delete-orphan",
+            ),
+            "non_conformities": relationship(
+                BatchNonConformity,
+                collection_class=list,
+                cascade="all, delete-orphan",
+            ),
         },
     )
