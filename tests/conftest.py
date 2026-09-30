@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, clear_mappers
-from LactoQC.adapters.orm import metadata, start_mappers
+from LactoQC.adapters.orm import metadata, start_mappers 
 from LactoQC.entrypoints.flask_app import create_app
 from LactoQC.adapters.repository import AbstractCollectionPointRepository
 from LactoQC.domain.model import CollectionPoint
@@ -65,3 +65,19 @@ def client(session_factory):
     app = create_app(session_factory)
     app.config["TESTING"] = True
     return app.test_client()
+@pytest.fixture
+def sqlite_engine_production_batch():
+    engine = create_engine("sqlite:///:memory:")
+    metadata.create_all(engine)
+    yield engine
+    metadata.drop_all(engine)
+
+
+@pytest.fixture
+def sqlite_session_production_batch(sqlite_engine_production_batch):
+    start_mappers()
+    session_factory = sessionmaker(bind=sqlite_engine_production_batch)
+    session = session_factory()
+    yield session
+    session.close()
+    clear_mappers()
