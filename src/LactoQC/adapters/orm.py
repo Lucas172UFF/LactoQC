@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Column, DateTime, Enum as SqlEnum , Float, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import relationship, registry
 from LactoQC.domain.model import (
     CollectionPoint,
