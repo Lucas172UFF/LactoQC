@@ -7,7 +7,17 @@ from LactoQC.domain.model import (
     MeasurementUnit,
     Measurement,
     NonConformity,
-    DailyClosure
+    DailyClosure,
+    RawMaterialReceiptStatus,
+    MilkType, 
+    TestResult, 
+    BatchStatus,
+    RawMaterialReceipt,
+    Lecithinization,
+    BatchNonConformity, 
+    ProductionBatch,
+    WeightSample
+
 )
 
 mapper_registry = registry()
@@ -154,7 +164,7 @@ def start_mappers_production_batch():
         raw_material_receipts,
     )
  
-    mapper_registry.map_imperatively(WeightSample, weight_samples)
+    mapper_registry.map_imperatively(RawMaterialReceipt, weight_samples)
     mapper_registry.map_imperatively(Lecithinization, lecithinizations)
     mapper_registry.map_imperatively(BatchNonConformity, batch_non_conformities)
  
