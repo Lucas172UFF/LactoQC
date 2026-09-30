@@ -1,4 +1,5 @@
-from datetime import datetime
+import pytest
+from datetime import datetime, date
 
 from LactoQC.adapters.repository import SqlAlchemyCollectionPointRepository
 from LactoQC.domain.model import (
@@ -51,3 +52,36 @@ def test_repository_lists_collection_points(session):
     session.commit()
 
     assert [cp.name for cp in repo.list()] == ["Collection Point 1", "Collection Point 2"]
+
+def test_repository_persists_daily_closure(session_factory):
+    collection_point = make_collection_point()
+    day = date(2026, 9, 29)
+    collection_point.add_measurement(Measurement(1, datetime(2026, 9, 29, 8, 0), 0.3, MeasurementUnit.MG_L, MeasurementType.CHLORINE))
+    collection_point.add_measurement(Measurement(2, datetime(2026, 9, 29, 8, 0), 7.0, None, MeasurementType.PH))
+    collection_point.add_measurement(Measurement(3, datetime(2026, 9, 29, 8, 0), 25.0, MeasurementUnit.CELSIUS, MeasurementType.TEMPERATURE))
+    collection_point.close_day(day)
+    with session_factory() as session:
+        SqlAlchemyCollectionPointRepository(session).add(collection_point)
+        session.commit()
+
+    with session_factory() as session:
+        retrieved = SqlAlchemyCollectionPointRepository(session).get(1)
+
+        assert retrieved.is_day_closed(day)
+        assert [closure.day for closure in retrieved.daily_closures] == [day]
+
+def test_repository_loaded_collection_point_rejects_measurement_on_closed_day(session_factory):
+    collection_point = make_collection_point()
+    collection_point.add_measurement(Measurement(1, datetime(2026, 9, 29, 8, 0), 0.3, MeasurementUnit.MG_L, MeasurementType.CHLORINE))
+    collection_point.add_measurement(Measurement(2, datetime(2026, 9, 29, 8, 0), 7.0, None, MeasurementType.PH))
+    collection_point.add_measurement(Measurement(3, datetime(2026, 9, 29, 8, 0), 25.0, MeasurementUnit.CELSIUS, MeasurementType.TEMPERATURE))
+    collection_point.close_day(date(2026, 9, 29))
+    with session_factory() as session:
+        SqlAlchemyCollectionPointRepository(session).add(collection_point)
+        session.commit()
+
+    with session_factory() as session:
+        retrieved = SqlAlchemyCollectionPointRepository(session).get(1)
+
+        with pytest.raises(ValueError, match="already closed"):
+            retrieved.add_measurement(Measurement(4, datetime(2026, 9, 29, 9, 0), 7.0, None, MeasurementType.PH))
