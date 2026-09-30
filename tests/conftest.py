@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, clear_mappers
 from LactoQC.adapters.orm import metadata, start_mappers , start_mappers_production_batch
 from LactoQC.entrypoints.flask_app import create_app
-from LactoQC.adapters.repository import AbstractCollectionPointRepository
+from LactoQC.adapters.repository import AbstractCollectionPointRepository , FakeProductionBatchRepository
 from LactoQC.domain.model import CollectionPoint
 
 
@@ -38,6 +38,10 @@ def fake_repo():
     return FakeCollectionPointRepository()
 
 @pytest.fixture
+def production_batch_repo():
+    return FakeProductionBatchRepository()
+
+@pytest.fixture
 def fake_session():
     return FakeSession()
 
@@ -51,6 +55,7 @@ def in_memory_db():
 @pytest.fixture(scope="function")
 def session_factory(in_memory_db):
     start_mappers()
+    start_mappers_production_batch()
     yield sessionmaker(bind=in_memory_db)
     clear_mappers()
 

@@ -26,6 +26,7 @@ def create_app(session_factory: sessionmaker | None = None) -> Flask:
     if session_factory is None:
         engine = create_engine(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
         orm.start_mappers()
+        orm.start_mappers_production_batch()
         orm.metadata.create_all(engine)
         session_factory = sessionmaker(bind=engine)
 
@@ -71,8 +72,10 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(health)
 
     from LactoQC.entrypoints.collection_point_routes import bp as collection_point_bp
+    from LactoQC.entrypoints.production_batch_routes import bp as production_batch_bp
 
     app.register_blueprint(collection_point_bp)
+    app.register_blueprint(production_batch_bp)
 
     # TODO: blueprints de Recebimento (Lucas) e Lote de Produção (Aloysio).
 
