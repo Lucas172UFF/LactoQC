@@ -1,5 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Table, Text
-from sqlalchemy import  Enum as SqlEnum
+from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Table, Text, Boolean
 from sqlalchemy.orm import relationship, registry
 from LactoQC.domain.model import (
     CollectionPoint,
@@ -89,7 +88,7 @@ raw_material_receipts = Table(
     "raw_material_receipts",
     metadata,
     Column("id_", Integer, primary_key=True, autoincrement=False),
-    Column("status", SqlEnum(RawMaterialReceiptStatus), nullable=False),
+    Column("status", Enum(RawMaterialReceiptStatus), nullable=False),
 )
  
 production_batches = Table(
@@ -98,11 +97,11 @@ production_batches = Table(
     Column("id_", Integer, primary_key=True, autoincrement=False),
     Column("batch_number", String(64), unique=True, nullable=False),
     Column("production_date", DateTime, nullable=False),
-    Column("milk_type", SqlEnum(MilkType), nullable=False),
+    Column("milk_type", Enum(MilkType), nullable=False),
     Column("raw_material_receipt_id", Integer, ForeignKey("raw_material_receipts.id_"), nullable=False),
     Column("expected_weight", Float, nullable=False),
-    Column("wettability_result", SqlEnum(TestResult), nullable=False, default=TestResult.PENDING),
-    Column("status", SqlEnum(BatchStatus), nullable=False, default=BatchStatus.OPEN),
+    Column("wettability_result", Enum(TestResult), nullable=False, default=TestResult.PENDING),
+    Column("status", Enum(BatchStatus), nullable=False, default=BatchStatus.OPEN),
 )
  
 weight_samples = Table(
