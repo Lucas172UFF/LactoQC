@@ -20,6 +20,7 @@ from LactoQC.domain.model import (
     Lecithinization,
     BatchNonConformity,
     MilkType,
+    NonConformityObserver,
     RawMaterialReceipt,
     TestResult,
 )
@@ -78,12 +79,17 @@ def get_collection_point(repo: AbstractCollectionPointRepository, collection_poi
 def register_measurement(
     repo: AbstractCollectionPointRepository, session: Session, collection_point_id: int,
     measurement_type: Any, value: Any, measurement_date: datetime | None = None,
+    observers: list[NonConformityObserver] | None = None,
 ) -> tuple[Measurement, list[NonConformity]]:
     """Registra a medição; o domínio gera a não conformidade se estiver fora da faixa.
 
     A unidade é derivada do tipo (EXPECTED_UNITS), então a API não precisa recebê-la.
+    `observers` são registrados no agregado antes da medição, para que uma
+    não conformidade criada nesta chamada já seja notificada (padrão Observer).
     """
     collection_point = get_collection_point(repo, collection_point_id)
+    for observer in observers or []:
+        collection_point.register_observer(observer)
     parsed_type = parse_measurement_type(measurement_type)
     measurement = Measurement(
         id_=None,

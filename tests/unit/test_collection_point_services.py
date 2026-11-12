@@ -3,7 +3,8 @@ import pytest
 from LactoQC.service_layer import services
 from LactoQC.domain.model import (
     MeasurementType,
-    MeasurementUnit
+    MeasurementUnit,
+    NonConformityObserver,
 )
 
 SPECS = [
@@ -62,6 +63,40 @@ def test_register_measurement_outside_specification_creates_non_conformity(fake_
     assert new_non_conformities[0].measurement is measurement
     assert collection_point.non_conformities == new_non_conformities
     assert fake_session.committed
+
+class RecordingNonConformityObserver(NonConformityObserver):
+    def __init__(self):
+        self.received = []
+
+    def notify(self, collection_point, non_conformity):
+        self.received.append(non_conformity)
+
+
+def test_register_measurement_notifies_observers_of_new_non_conformities(fake_repo, fake_session):
+    collection_point = services.create_collection_point(
+        fake_repo, fake_session, "Sala 1", "Bloco A", SPECS
+    )
+    observer = RecordingNonConformityObserver()
+
+    measurement, new_non_conformities = services.register_measurement(
+        fake_repo, fake_session, collection_point.id_, "PH", 8.0, datetime(2026, 9, 29, 8, 0),
+        observers=[observer],
+    )
+
+    assert observer.received == new_non_conformities
+
+
+def test_register_measurement_without_observers_still_creates_non_conformity(fake_repo, fake_session):
+    collection_point = services.create_collection_point(
+        fake_repo, fake_session, "Sala 1", "Bloco A", SPECS
+    )
+
+    measurement, new_non_conformities = services.register_measurement(
+        fake_repo, fake_session, collection_point.id_, "PH", 8.0, datetime(2026, 9, 29, 8, 0)
+    )
+
+    assert len(new_non_conformities) == 1
+
 
 def test_register_measurement_accepts_measurement_type_label(fake_repo, fake_session):
     colection_point = services.create_collection_point(

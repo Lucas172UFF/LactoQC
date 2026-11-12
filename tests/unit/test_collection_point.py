@@ -8,6 +8,7 @@ from LactoQC.domain.model import (
     Measurement,
     Specification,
     NonConformity,
+    NonConformityObserver,
     DailyClosure
 )
 
@@ -478,3 +479,61 @@ def test_new_collection_point_has_no_closed_days():
 
     assert collection_point.daily_closures == []
     assert not collection_point.is_day_closed(date(2026, 9, 29))
+
+
+class RecordingNonConformityObserver(NonConformityObserver):
+    """Fake observer usado nos testes: só guarda o que recebeu."""
+
+    def __init__(self):
+        self.received = []
+
+    def notify(self, collection_point, non_conformity):
+        self.received.append((collection_point, non_conformity))
+
+
+def test_observer_is_notified_when_non_conformity_is_created():
+    collection_point = make_collection_point()
+    observer = RecordingNonConformityObserver()
+    collection_point.register_observer(observer)
+
+    day = date(2026, 9, 29)
+    collection_point.add_measurement(make_measurement(1, MeasurementType.PH, day, 8.0))
+
+    assert len(observer.received) == 1
+    notified_point, notified_nc = observer.received[0]
+    assert notified_point is collection_point
+    assert notified_nc is collection_point.non_conformities[0]
+
+
+def test_observer_is_not_notified_when_measurement_is_within_specification():
+    collection_point = make_collection_point()
+    observer = RecordingNonConformityObserver()
+    collection_point.register_observer(observer)
+
+    day = date(2026, 9, 29)
+    collection_point.add_measurement(make_measurement(1, MeasurementType.PH, day, 7.0))
+
+    assert observer.received == []
+
+
+def test_multiple_observers_are_all_notified():
+    collection_point = make_collection_point()
+    first_observer = RecordingNonConformityObserver()
+    second_observer = RecordingNonConformityObserver()
+    collection_point.register_observer(first_observer)
+    collection_point.register_observer(second_observer)
+
+    day = date(2026, 9, 29)
+    collection_point.add_measurement(make_measurement(1, MeasurementType.PH, day, 8.0))
+
+    assert len(first_observer.received) == 1
+    assert len(second_observer.received) == 1
+
+
+def test_collection_point_without_observers_behaves_as_before():
+    collection_point = make_collection_point()
+    day = date(2026, 9, 29)
+
+    collection_point.add_measurement(make_measurement(1, MeasurementType.PH, day, 8.0))
+
+    assert len(collection_point.non_conformities) == 1
