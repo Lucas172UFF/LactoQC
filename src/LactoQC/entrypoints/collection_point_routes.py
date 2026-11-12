@@ -7,8 +7,14 @@ from flask import Blueprint, abort, jsonify, request
 from LactoQC.adapters.repository import AbstractCollectionPointRepository, SqlAlchemyCollectionPointRepository
 from LactoQC.entrypoints.flask_app import get_session
 from LactoQC.service_layer import services
+from LactoQC.service_layer.notifications import LoggingNonConformityObserver
 
 bp = Blueprint("collection_points", __name__)
+
+# Observer concreto que acompanha toda medição registrada pela API (padrão Observer,
+# ver docs/gof.md). Um segundo ConcreteObserver poderia ser acrescentado aqui
+# (ex.: alerta por e-mail) sem tocar no domínio nem no service layer.
+_non_conformity_observers = [LoggingNonConformityObserver()]
 
 def _parse_date(raw: str | None, field: str):
     try:
@@ -117,6 +123,7 @@ def register_measurement(collection_point_id: int):
         SqlAlchemyCollectionPointRepository(session), session, collection_point_id,
         measurement_type=body["measurement_type"], value=body["value"],
         measurement_date=_parse_datetime(body.get("measurement_date"), "measurement_date"),
+        observers=_non_conformity_observers,
     )
     return jsonify(
         measurement=_measurement_json(measurement),
