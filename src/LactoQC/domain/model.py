@@ -14,9 +14,16 @@ class MeasurementUnit(Enum):
 
 EXPECTED_UNITS = {
     MeasurementType.CHLORINE: MeasurementUnit.MG_L,
-    MeasurementType.PH: None, 
+    MeasurementType.PH: None,
     MeasurementType.TEMPERATURE: MeasurementUnit.CELSIUS,
 }
+
+# Quais tipos de medição são obrigatórios para todo CollectionPoint (fecham o dia).
+# Um tipo novo entra em MeasurementType + EXPECTED_UNITS sem mexer aqui;
+# só entra aqui se a regra de negócio for "este tipo também é obrigatório".
+MANDATORY_MEASUREMENT_TYPES = frozenset(
+    {MeasurementType.CHLORINE, MeasurementType.PH, MeasurementType.TEMPERATURE}
+)
 
 class Measurement:
     def __init__(
@@ -93,7 +100,7 @@ class CollectionPoint:
         self._validate_specifications()
 
     def _validate_specifications(self):
-        for  measurement_type in MeasurementType:
+        for measurement_type in MANDATORY_MEASUREMENT_TYPES:
             count = sum(1 for spec in self.specifications if spec.measurement_type == measurement_type)
             if count == 0:
                 raise ValueError(f"Specification for measurement type {measurement_type.value} is missing.")
@@ -111,7 +118,7 @@ class CollectionPoint:
         measured_types = {
             measurement.measurement_type for measurement in self.measurements if measurement.measurement_date.date() == day
         }
-        for measurement_type in MeasurementType:
+        for measurement_type in MANDATORY_MEASUREMENT_TYPES:
             if measurement_type not in measured_types:
                 raise ValueError(
                     f"Cannot close day {day}: missing {measurement_type.value} measurement."

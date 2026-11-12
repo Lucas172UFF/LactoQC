@@ -343,7 +343,20 @@ avaliações minhas sobre o sistema real.
 
 ### João Gabriel Pimentel
 
-_(pendente — preencho depois de refazer o checkpoint 2 nesta conversa)_
+**O que fiz:** corrigi uma violação de OCP no agregado `CollectionPoint`
+(`src/LactoQC/domain/model.py`, `tests/unit/test_collection_point.py`),
+documentada em `docs/solid.md`. Commit de código: `6ad1830`.
+
+**Decisão de projeto:** extraí a obrigatoriedade dos tipos de medição para
+um dado explícito (`MANDATORY_MEASUREMENT_TYPES`) em vez de deixá-la
+implícita na iteração sobre todo o Enum `MeasurementType` — assim um tipo de
+medição novo e opcional não exige alterar `CollectionPoint`.
+
+**Uso de IA:** usei o Claude Code para identificar a violação de OCP
+(iteração sobre o Enum inteiro tratando "existe" como sinônimo de "é
+obrigatório"), propor a extração de `MANDATORY_MEASUREMENT_TYPES` e redigir
+`docs/solid.md`. A refatoração, o teste novo e a validação de que a suíte
+continuava passando (174 testes) foram conferidos por mim antes do commit.
 
 ### Aloysio Felipe Saad Silva
 

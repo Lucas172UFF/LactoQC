@@ -208,6 +208,31 @@ def test_reject_collection_point_with_two_specifications_of_same_measurement_typ
             ]
         )
 
+def test_collection_point_only_requires_mandatory_measurement_types(monkeypatch):
+    """OCP: a obrigatoriedade vem de MANDATORY_MEASUREMENT_TYPES, não do Enum inteiro.
+
+    Reduzindo a política para um único tipo, o CollectionPoint aceita faltar
+    especificação/medição dos demais — sem qualquer alteração em CollectionPoint.
+    """
+    monkeypatch.setattr(
+        "LactoQC.domain.model.MANDATORY_MEASUREMENT_TYPES",
+        frozenset({MeasurementType.CHLORINE}),
+    )
+
+    collection_point = CollectionPoint(
+        id_=5,
+        name="Sample Point D",
+        location="Location D",
+        specifications=[make_chlorine_specification()],
+    )
+
+    day = date(2026, 9, 29)
+    collection_point.add_measurement(make_measurement(1, MeasurementType.CHLORINE, day, 0.3))
+    collection_point.close_day(day)
+
+    assert collection_point.is_day_closed(day)
+
+
 def test_add_measurement_to_collection_point():
     specs = [
         make_ph_specification(),
