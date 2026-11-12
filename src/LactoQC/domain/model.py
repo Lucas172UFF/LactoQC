@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
-
+from typing import List, Optional
 
 class MeasurementType(Enum):
     CHLORINE = "Cloro"
@@ -174,6 +174,12 @@ class CollectionPoint:
 
 
 
+from abc import ABC, abstractmethod
+from datetime import datetime
+from enum import Enum
+from typing import List, Optional
+
+
 class MilkType(Enum):
     COW = "Cow"
     GOAT = "Goat"
@@ -198,8 +204,6 @@ class BatchStatus(Enum):
 
 
 class RawMaterialReceipt:
-    """Simplified reference to the raw material receipt batch."""
-
     def __init__(self, id_: int, status: RawMaterialReceiptStatus):
         self.id_ = id_
         self.status = status
@@ -214,7 +218,6 @@ class WeightSample:
         self.id_ = id_
         self.date_time = date_time
         self.weight_kg = weight_kg
-
         self._verify_weight()
 
     def _verify_weight(self):
@@ -223,7 +226,7 @@ class WeightSample:
 
 
 class Lecithinization:
-    def __init__(self, performed: bool, date_time: datetime | None = None, responsible: str | None = None):
+    def __init__(self, performed: bool, date_time: Optional[datetime] = None, responsible: Optional[str] = None):
         self.performed = performed
         self.date_time = date_time
         self.responsible = responsible
@@ -236,19 +239,99 @@ class BatchNonConformity:
         self.description = description
 
 
+
+
+class SampleWeightRule(ABC):
+    @abstractmethod
+    def check(self, batch: "ProductionBatch", sample: WeightSample) -> Optional[str]:
+        raise NotImplementedError
+
+
+class WeightToleranceRule(SampleWeightRule):
+    def __init__(self, tolerance: float = 0.05):
+        self.tolerance = tolerance
+
+    def check(self, batch: "ProductionBatch", sample: WeightSample) -> Optional[str]:
+        lower_bound = batch.expected_weight * (1 - self.tolerance)
+        upper_bound = batch.expected_weight * (1 + self.tolerance)
+        if lower_bound <= sample.weight_kg <= upper_bound:
+            return None
+        return (
+            f"Sample {sample.id_} with weight {sample.weight_kg}kg is out of the "
+            f"{self.tolerance * 100:.0f}% tolerance range "
+            f"({lower_bound:.2f}kg - {upper_bound:.2f}kg)."
+        )
+
+
+class LecithinizationRule(ABC):
+    @abstractmethod
+    def check(self, batch: "ProductionBatch") -> Optional[str]:
+        raise NotImplementedError
+
+
+class MandatoryLecithinizationForGoatMilkRule(LecithinizationRule):
+    def check(self, batch: "ProductionBatch") -> Optional[str]:
+        requires_lecithinization = batch.milk_type == MilkType.GOAT
+        was_performed = batch.lecithinization is not None and batch.lecithinization.performed
+        if requires_lecithinization and not was_performed:
+            return "Goat milk requires lecithinization, but it was not performed."
+        return None
+
+
+class MilkTypeConflictRule(ABC):
+    @abstractmethod
+    def check(self, batch: "ProductionBatch", other_batches_of_the_day: List["ProductionBatch"]) -> List[str]:
+        raise NotImplementedError
+
+
+class SameDayDifferentMilkTypeRule(MilkTypeConflictRule):
+    def check(self, batch: "ProductionBatch", other_batches_of_the_day: List["ProductionBatch"]) -> List[str]:
+        violations = []
+        for other_batch in other_batches_of_the_day:
+            same_date = other_batch.production_date.date() == batch.production_date.date()
+            different_milk = other_batch.milk_type != batch.milk_type
+            if other_batch.id_ != batch.id_ and same_date and different_milk:
+                violations.append(
+                    f"Milk type conflict: batch {other_batch.batch_number} "
+                    f"({other_batch.milk_type.value}) produced on the same date "
+                    f"({batch.production_date.date()})."
+                )
+        return violations
+
+
+class WettabilityRule(ABC):
+    @abstractmethod
+    def check(self, batch: "ProductionBatch") -> Optional[str]:
+        raise NotImplementedError
+
+
+class WettabilityMustBeApprovedRule(WettabilityRule):
+    def check(self, batch: "ProductionBatch") -> Optional[str]:
+        if batch.wettability_result != TestResult.APPROVED:
+            return "Wettability test not approved."
+        return None
+
+
 class ProductionBatch:
 
-    WEIGHT_TOLERANCE = 0.05  # 5%
+    _default_weight_rule = WeightToleranceRule()
+    _default_lecithinization_rule = MandatoryLecithinizationForGoatMilkRule()
+    _default_milk_type_conflict_rule = SameDayDifferentMilkTypeRule()
+    _default_wettability_rule = WettabilityMustBeApprovedRule()
 
     def __init__(
         self, id_: int, batch_number: str, production_date: datetime,
         milk_type: MilkType, raw_material_receipt: RawMaterialReceipt,
         expected_weight: float,
-        weight_samples: list[WeightSample] | None = None,
-        lecithinization: Lecithinization | None = None,
+        weight_samples: Optional[List[WeightSample]] = None,
+        lecithinization: Optional[Lecithinization] = None,
         wettability_result: TestResult = TestResult.PENDING,
         status: BatchStatus = BatchStatus.OPEN,
-        non_conformities: list[BatchNonConformity] | None = None,
+        non_conformities: Optional[List[BatchNonConformity]] = None,
+        weight_rule: Optional[SampleWeightRule] = None,
+        lecithinization_rule: Optional[LecithinizationRule] = None,
+        milk_type_conflict_rule: Optional[MilkTypeConflictRule] = None,
+        wettability_rule: Optional[WettabilityRule] = None,
         ):
         self.id_ = id_
         self.batch_number = batch_number
@@ -261,6 +344,15 @@ class ProductionBatch:
         self.wettability_result = wettability_result
         self.status = status
         self.non_conformities = non_conformities if non_conformities is not None else []
+
+        if weight_rule is not None:
+            self._weight_rule = weight_rule
+        if lecithinization_rule is not None:
+            self._lecithinization_rule = lecithinization_rule
+        if milk_type_conflict_rule is not None:
+            self._milk_type_conflict_rule = milk_type_conflict_rule
+        if wettability_rule is not None:
+            self._wettability_rule = wettability_rule
 
         self._verify_raw_material_approved()
         self._verify_expected_weight()
@@ -276,28 +368,36 @@ class ProductionBatch:
         if self.expected_weight <= 0:
             raise ValueError("Expected weight must be greater than zero.")
 
-    def _register_non_conformity(self, description: str):
-        non_conformity = BatchNonConformity(
-            id_=len(self.non_conformities) + 1,
-            batch_id=self.id_,
-            description=description,
-        )
-        self.non_conformities.append(non_conformity)
+    @property
+    def weight_rule(self) -> SampleWeightRule:
+        return getattr(self, "_weight_rule", self._default_weight_rule)
 
-    def check_sample_weight(self, weight_sample: WeightSample):
-        lower_bound = self.expected_weight * (1 - self.WEIGHT_TOLERANCE)
-        upper_bound = self.expected_weight * (1 + self.WEIGHT_TOLERANCE)
-        if not (lower_bound <= weight_sample.weight_kg <= upper_bound):
-            description = (
-                f"Sample {weight_sample.id_} with weight {weight_sample.weight_kg}kg is out of the "
-                f"{self.WEIGHT_TOLERANCE * 100:.0f}% tolerance range "
-                f"({lower_bound:.2f}kg - {upper_bound:.2f}kg)."
+    @property
+    def lecithinization_rule(self) -> LecithinizationRule:
+        return getattr(self, "_lecithinization_rule", self._default_lecithinization_rule)
+
+    @property
+    def milk_type_conflict_rule(self) -> MilkTypeConflictRule:
+        return getattr(self, "_milk_type_conflict_rule", self._default_milk_type_conflict_rule)
+
+    @property
+    def wettability_rule(self) -> WettabilityRule:
+        return getattr(self, "_wettability_rule", self._default_wettability_rule)
+
+    def _register_non_conformity(self, description: str):
+        self.non_conformities.append(
+            BatchNonConformity(
+                id_=len(self.non_conformities) + 1,
+                batch_id=self.id_,
+                description=description,
             )
-            self._register_non_conformity(description)
+        )
 
     def add_weight_sample(self, weight_sample: WeightSample):
         self.weight_samples.append(weight_sample)
-        self.check_sample_weight(weight_sample)
+        violation = self.weight_rule.check(self, weight_sample)
+        if violation:
+            self._register_non_conformity(violation)
 
     def register_lecithinization(self, lecithinization: Lecithinization):
         self.lecithinization = lecithinization
@@ -308,25 +408,22 @@ class ProductionBatch:
             self._register_non_conformity("Wettability test rejected.")
 
     def check_mandatory_lecithinization(self):
-        if self.milk_type == MilkType.GOAT and (self.lecithinization is None or not self.lecithinization.performed):
-            self._register_non_conformity("Goat milk requires lecithinization, but it was not performed.")
+        violation = self.lecithinization_rule.check(self)
+        if violation:
+            self._register_non_conformity(violation)
 
-    def check_milk_type_conflict(self, other_batches_of_the_day: list["ProductionBatch"]):
-        for other_batch in other_batches_of_the_day:
-            same_date = other_batch.production_date.date() == self.production_date.date()
-            if other_batch.id_ != self.id_ and same_date and other_batch.milk_type != self.milk_type:
-                self._register_non_conformity(
-                    f"Milk type conflict: batch {other_batch.batch_number} ({other_batch.milk_type.value}) "
-                    f"produced on the same date ({self.production_date.date()})."
-                )
+    def check_milk_type_conflict(self, other_batches_of_the_day: List["ProductionBatch"]):
+        for violation in self.milk_type_conflict_rule.check(self, other_batches_of_the_day):
+            self._register_non_conformity(violation)
 
-    def release(self, other_batches_of_the_day: list["ProductionBatch"] | None = None):
+    def release(self, other_batches_of_the_day: Optional[List["ProductionBatch"]] = None):
         other_batches_of_the_day = other_batches_of_the_day if other_batches_of_the_day is not None else []
 
         self.check_mandatory_lecithinization()
         self.check_milk_type_conflict(other_batches_of_the_day)
 
-        if self.wettability_result != TestResult.APPROVED:
-            self._register_non_conformity("Wettability test not approved.")
+        violation = self.wettability_rule.check(self)
+        if violation:
+            self._register_non_conformity(violation)
 
         self.status = BatchStatus.NON_CONFORMING if self.non_conformities else BatchStatus.RELEASED
