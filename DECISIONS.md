@@ -374,7 +374,27 @@ _(preencher)_
 
 ### João Gabriel Pimentel
 
-_(pendente — preencho depois de refazer o checkpoint 3 nesta conversa)_
+**O que fiz:** apliquei o padrão Observer no agregado `CollectionPoint`
+(`src/LactoQC/domain/model.py`, `src/LactoQC/service_layer/notifications.py`,
+`src/LactoQC/service_layer/services.py`,
+`src/LactoQC/entrypoints/collection_point_routes.py`,
+`tests/unit/test_collection_point.py`,
+`tests/unit/test_collection_point_services.py`), documentado em
+`docs/gof.md`. Commit de código: `232d03a`.
+
+**Decisão de projeto:** criei a interface `NonConformityObserver` no
+domínio e deixei `CollectionPoint` notificar observadores registrados em vez
+de chamar um canal de notificação específico (ex.: log) diretamente — assim
+um segundo canal (e-mail, fila de eventos) não exige alterar o agregado,
+só uma nova classe que implementa a interface.
+
+**Uso de IA:** usei o Claude Code para identificar a lacuna (não
+conformidade sem notificação, já registrada em `docs/arquitetura.md` §5.1),
+propor o Observer como solução, comparar com as alternativas descartadas
+(chamada direta no domínio; lista de callables genéricos) e redigir
+`docs/gof.md`. A implementação, os testes novos e a validação de que a
+suíte continuava passando (180 testes) foram conferidos por mim antes do
+commit.
 
 ### Aloysio Felipe Saad Silva
 

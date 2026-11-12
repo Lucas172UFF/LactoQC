@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from datetime import datetime, date
 from enum import Enum
 
@@ -83,6 +84,16 @@ class DailyClosure:
         self.day = day
 
 
+class NonConformityObserver(ABC):
+    """Observer: alguém fora do agregado que precisa saber quando uma não
+    conformidade é registrada (auditoria, alerta ao supervisor etc.),
+    sem que o CollectionPoint conheça esse "alguém"."""
+
+    @abstractmethod
+    def notify(self, collection_point: "CollectionPoint", non_conformity: "NonConformity") -> None:
+        ...
+
+
 class CollectionPoint:
     def __init__(
         self, id_:int, name:str, location:str,
@@ -124,12 +135,22 @@ class CollectionPoint:
                     f"Cannot close day {day}: missing {measurement_type.value} measurement."
                 )
 
+    def register_observer(self, observer: NonConformityObserver) -> None:
+        # getattr: instâncias recarregadas do banco pelo SQLAlchemy nunca rodam
+        # __init__ (R-02 em docs/arquitetura.md), então _observers pode não existir ainda.
+        self._observers = getattr(self, "_observers", [])
+        self._observers.append(observer)
+
+    def _notify_observers(self, non_conformity: "NonConformity") -> None:
+        for observer in getattr(self, "_observers", []):
+            observer.notify(self, non_conformity)
+
     def check_for_non_conformity(self, measurement:Measurement):
         for specification in self.specifications:
             if specification.measurement_type == measurement.measurement_type:
                 if not specification.is_value_within_specification(measurement.value):
-                    description = f"""Measurement {measurement.value} {measurement.measurement_unit.value if measurement.measurement_unit else ''} 
-                    is out of specification range ({specification.min_value} - {specification.max_value} 
+                    description = f"""Measurement {measurement.value} {measurement.measurement_unit.value if measurement.measurement_unit else ''}
+                    is out of specification range ({specification.min_value} - {specification.max_value}
                     {specification.measurement_unit.value if specification.measurement_unit else ''})"""
                     non_conformity = NonConformity(
                         id_=len(self.non_conformities) + 1,
@@ -138,6 +159,7 @@ class CollectionPoint:
                         description=description
                     )
                     self.non_conformities.append(non_conformity)
+                    self._notify_observers(non_conformity)
 
     def close_day(self, day:date):
         self._verify_day_is_open(day)
