@@ -309,3 +309,68 @@ O uso ocorreu principalmente para:
   ajustados e validados pelo integrante com a execução dos testes;
 - discussão das alternativas de projeto do fechamento diário. As regras
   adotadas foram escolhidas pelo integrante.
+
+---
+
+# Parte 2 — Fase 2
+
+## Checkpoint 1 — Arquitetura e trade-offs (22/10)
+
+Feito por um único integrante (os demais não têm subseção neste checkpoint).
+
+### João Gabriel Pimentel
+
+**O que fiz:** escrevi `docs/arquitetura.md` (escopo, requisitos arquiteturais com
+cenários de qualidade medidos, arquitetura atual, análise de trade-offs,
+alternativa avaliada e evidências) e os 6 ADRs em `docs/adr/`, no commit
+`56a54f0`.
+
+**Decisão de projeto:** mantive o mapeamento imperativo do ORM (PT-01 do
+documento) em vez do modelo declarativo, mesmo custando 191 linhas em
+`orm.py` para mapear 302 linhas de domínio — porque testabilidade é o
+atributo de qualidade de maior prioridade do projeto (CQ-01), e o modelo
+declarativo obrigaria o domínio a importar SQLAlchemy.
+
+**Uso de IA:** usei o Claude Code como apoio para estruturar o documento de
+arquitetura e os ADRs, pesquisar o vocabulário de atributos de qualidade
+(ISO/IEC 25010) e formatar os cenários de qualidade em seis partes. As
+medições citadas (tempo de suíte, linhas de código, commits) foram
+extraídas do próprio repositório por mim/pela IA e conferidas por mim antes
+do commit; as decisões de arquitetura e os trade-offs identificados são
+avaliações minhas sobre o sistema real.
+
+## Checkpoint 2 — Refatoração SOLID (03/11)
+
+### João Gabriel Pimentel
+
+_(pendente — preencho depois de refazer o checkpoint 2 nesta conversa)_
+
+### Aloysio Felipe Saad Silva
+
+_(preencher)_
+
+### Lucas Ardelino Alves da Silva
+
+_(preencher)_
+
+### André Meschesi Dantas
+
+_(preencher)_
+
+## Checkpoint 3 — Padrões GoF (10/11)
+
+### João Gabriel Pimentel
+
+_(pendente — preencho depois de refazer o checkpoint 3 nesta conversa)_
+
+### Aloysio Felipe Saad Silva
+
+_(preencher)_
+
+### Lucas Ardelino Alves da Silva
+
+_(preencher)_
+
+### André Meschesi Dantas
+
+_(preencher)_
