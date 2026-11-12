@@ -175,17 +175,138 @@ mudança em `CollectionPoint`, em `services.py` além da assinatura já pronta,
 ou nos testes existentes. É exatamente o requisito que `docs/arquitetura.md`
 §5.1 deixou em aberto, resolvido com o menor acoplamento possível.
 
----
 
-## Aloysio Felipe Saad Silva — _(preencher)_
+## Aloysio Felipe Saad Silva — `ProductionBatch` (agregado Lote de Produção)
 
-- Nome e categoria:
-- Contexto e problema:
-- Por que esse padrão (com alternativa considerada):
-- Participantes mapeados para classes reais:
-- Diagrama de classes (Mermaid/PlantUML):
-- Teste que exercita o padrão:
-- Custo da aplicação:
+### Padrão GoF aplicado: Strategy (comportamental)
+
+
+### Por que Strategy
+
+As quatro regras de qualidade do Lote de Produção — tolerância de peso,
+lecitinização obrigatória para leite de cabra, conflito de tipo de leite no
+mesmo dia e aprovação da molhabilidade — são, cada uma, **um algoritmo de
+decisão independente**: recebem o estado do lote (e, em dois casos, um dado
+extra) e devolvem "passou" ou a descrição de uma violação. O padrão Strategy
+existe exatamente para esse cenário: definir uma família de algoritmos,
+encapsular cada um numa classe própria atrás de uma interface comum, e
+tornar esses algoritmos intercambiáveis sem que a classe que os usa
+(`ProductionBatch`) precise saber como cada um decide.
+
+### Participantes do padrão, mapeados para o código
+
+| Papel no padrão Strategy | Classe no código |
+|---|---|
+| Context (quem usa a estratégia) | `ProductionBatch` |
+| Strategy (interface comum) | `SampleWeightRule`, `LecithinizationRule`, `MilkTypeConflictRule`, `WettabilityRule` |
+| ConcreteStrategy (implementação) | `WeightToleranceRule`, `MandatoryLecithinizationForGoatMilkRule`, `SameDayDifferentMilkTypeRule`, `WettabilityMustBeApprovedRule` |
+
+`ProductionBatch` recebe a estratégia desejada por injeção no construtor
+(parâmetros opcionais `weight_rule`, `lecithinization_rule`,
+`milk_type_conflict_rule`, `wettability_rule`), expõe cada uma por meio de
+uma `@property` que cai para uma implementação padrão quando nenhuma foi
+injetada, e delega a decisão a ela:
+
+```python
+@property
+def weight_rule(self) -> SampleWeightRule:
+    return getattr(self, "_weight_rule", self._default_weight_rule)
+
+def add_weight_sample(self, weight_sample: WeightSample):
+    self.weight_samples.append(weight_sample)
+    violation = self.weight_rule.check(self, weight_sample)
+    if violation:
+        self._register_non_conformity(violation)
+```
+
+### Diagrama
+
+```mermaid
+classDiagram
+    class ProductionBatch {
+        -_weight_rule : SampleWeightRule
+        -_lecithinization_rule : LecithinizationRule
+        -_milk_type_conflict_rule : MilkTypeConflictRule
+        -_wettability_rule : WettabilityRule
+        +add_weight_sample(sample)
+        +check_mandatory_lecithinization()
+        +check_milk_type_conflict(others)
+        +release(others)
+    }
+
+    class SampleWeightRule {
+        <<interface>>
+        +check(batch, sample) str
+    }
+    class WeightToleranceRule {
+        +tolerance : float
+        +check(batch, sample) str
+    }
+
+    class LecithinizationRule {
+        <<interface>>
+        +check(batch) str
+    }
+    class MandatoryLecithinizationForGoatMilkRule {
+        +check(batch) str
+    }
+
+    class MilkTypeConflictRule {
+        <<interface>>
+        +check(batch, others) list
+    }
+    class SameDayDifferentMilkTypeRule {
+        +check(batch, others) list
+    }
+
+    class WettabilityRule {
+        <<interface>>
+        +check(batch) str
+    }
+    class WettabilityMustBeApprovedRule {
+        +check(batch) str
+    }
+
+    ProductionBatch --> SampleWeightRule : usa
+    ProductionBatch --> LecithinizationRule : usa
+    ProductionBatch --> MilkTypeConflictRule : usa
+    ProductionBatch --> WettabilityRule : usa
+
+    SampleWeightRule <|.. WeightToleranceRule
+    LecithinizationRule <|.. MandatoryLecithinizationForGoatMilkRule
+    MilkTypeConflictRule <|.. SameDayDifferentMilkTypeRule
+    WettabilityRule <|.. WettabilityMustBeApprovedRule
+```
+
+### Como o teste comprova o padrão (e não só a regra de negócio)
+
+A diferença entre "a regra funciona" e "o padrão Strategy está realmente
+aplicado" é a **substituibilidade**: se eu trocar a implementação sem
+modificar `ProductionBatch`, o comportamento do agregado muda de acordo.
+Isso é o que `tests/unit/test_production_batch_strategy_pattern.py` testa
+especificamente (separado dos testes de regra de negócio, que já existiam
+em `tests/unit/test_production_batch.py`):
+
+- `test_default_rule_instance_is_a_weight_tolerance_rule` — confirma que,
+  sem nada injetado, o Context usa a ConcreteStrategy padrão.
+- `test_injecting_a_stricter_weight_rule_changes_behavior` — cria uma
+  `StrictWeightToleranceRule` (tolerância de 1%, escrita só para o teste,
+  fora de `ProductionBatch`) e mostra que a **mesma amostra de peso**
+  (104kg) passa com a estratégia padrão (5%) e gera não conformidade com a
+  estratégia customizada — a decisão vem da estratégia, não de um `if`
+  dentro do agregado.
+- `test_injecting_a_permissive_wettability_rule_allows_release` — injeta
+  uma `AlwaysApprovedWettabilityRule` e mostra que um lote com
+  `wettability_result` ainda `PENDING` (que reprovaria com a regra padrão)
+  é liberado — mesma prova, para a decisão de liberação do lote.
+- `test_same_batch_class_supports_two_different_strategies_simultaneously` —
+  dois lotes da mesma classe `ProductionBatch`, cada um com uma estratégia de
+  peso diferente injetada, avaliando a mesma amostra com resultados opostos:
+  evidencia que o algoritmo é propriedade da instância (via a estratégia
+  injetada), não da classe.
+
+Suíte completa de `tests/unit/`: **49 testes passando** (44 de regra de
+negócio do agregado + 5 dedicados ao padrão Strategy).
 
 ---
 
