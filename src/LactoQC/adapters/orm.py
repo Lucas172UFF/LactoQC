@@ -162,6 +162,7 @@ def start_mappers_production_batch():
     receipt_mapper = mapper_registry.map_imperatively(
         RawMaterialReceipt,
         raw_material_receipts,
+        properties={"_status": raw_material_receipts.c.status},
     )
  
     mapper_registry.map_imperatively(WeightSample, weight_samples)

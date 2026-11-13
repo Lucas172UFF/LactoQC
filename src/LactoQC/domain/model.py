@@ -187,6 +187,7 @@ class MilkType(Enum):
 
 class RawMaterialReceiptStatus(Enum):
     PENDING = "Pending"
+    QUARANTINED = "Quarantined"
     APPROVED = "Approved"
     REJECTED = "Rejected"
 
@@ -203,14 +204,99 @@ class BatchStatus(Enum):
     RELEASED = "Released"
 
 
+class RawMaterialReceiptState(ABC):
+    """State of a receipt and the transitions allowed from that state."""
+
+    @property
+    @abstractmethod
+    def status(self) -> RawMaterialReceiptStatus:
+        raise NotImplementedError
+
+    def approve(self) -> RawMaterialReceiptStatus:
+        raise ValueError(f"A receipt in state {self.status.value} cannot be approved.")
+
+    def reject(self) -> RawMaterialReceiptStatus:
+        raise ValueError(f"A receipt in state {self.status.value} cannot be rejected.")
+
+    def quarantine(self) -> RawMaterialReceiptStatus:
+        raise ValueError(f"A receipt in state {self.status.value} cannot be quarantined.")
+
+
+class PendingReceiptState(RawMaterialReceiptState):
+    @property
+    def status(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.PENDING
+
+    def approve(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.APPROVED
+
+    def reject(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.REJECTED
+
+    def quarantine(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.QUARANTINED
+
+
+class QuarantinedReceiptState(RawMaterialReceiptState):
+    @property
+    def status(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.QUARANTINED
+
+    def approve(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.APPROVED
+
+    def reject(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.REJECTED
+
+
+class ApprovedReceiptState(RawMaterialReceiptState):
+    @property
+    def status(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.APPROVED
+
+
+class RejectedReceiptState(RawMaterialReceiptState):
+    @property
+    def status(self) -> RawMaterialReceiptStatus:
+        return RawMaterialReceiptStatus.REJECTED
+
+
+_RECEIPT_STATES: dict[RawMaterialReceiptStatus, RawMaterialReceiptState] = {
+    RawMaterialReceiptStatus.PENDING: PendingReceiptState(),
+    RawMaterialReceiptStatus.QUARANTINED: QuarantinedReceiptState(),
+    RawMaterialReceiptStatus.APPROVED: ApprovedReceiptState(),
+    RawMaterialReceiptStatus.REJECTED: RejectedReceiptState(),
+}
+
+
 class RawMaterialReceipt:
     def __init__(self, id_: int, status: RawMaterialReceiptStatus):
         self.id_ = id_
-        self.status = status
+        # Keep the enum as the persisted representation; the State object is
+        # resolved from it so SQLAlchemy can reconstruct receipts without
+        # invoking __init__.
+        self._status = status
+
+    @property
+    def status(self) -> RawMaterialReceiptStatus:
+        return self._status
+
+    @property
+    def state(self) -> RawMaterialReceiptState:
+        return _RECEIPT_STATES[self._status]
 
     @property
     def approved(self) -> bool:
-        return self.status == RawMaterialReceiptStatus.APPROVED
+        return self.state.status == RawMaterialReceiptStatus.APPROVED
+
+    def approve(self) -> None:
+        self._status = self.state.approve()
+
+    def reject(self) -> None:
+        self._status = self.state.reject()
+
+    def quarantine(self) -> None:
+        self._status = self.state.quarantine()
 
 
 class WeightSample:

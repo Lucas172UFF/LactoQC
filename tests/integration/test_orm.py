@@ -174,3 +174,24 @@ def test_release_status_is_persisted(sqlite_session_production_batch):
 
     loaded_batch = session.query(ProductionBatch).filter_by(batch_number="PB-004").one()
     assert loaded_batch.status == BatchStatus.RELEASED
+
+
+def test_receipt_state_transitions_survive_orm_reload(sqlite_session_production_batch):
+    session = sqlite_session_production_batch
+    receipt = RawMaterialReceipt(id_=41, status=RawMaterialReceiptStatus.PENDING)
+    receipt.quarantine()
+    session.add(receipt)
+    session.commit()
+    session.expunge_all()
+
+    loaded_receipt = session.get(RawMaterialReceipt, 41)
+
+    assert loaded_receipt.status == RawMaterialReceiptStatus.QUARANTINED
+    assert loaded_receipt.approved is False
+    loaded_receipt.approve()
+    session.commit()
+    session.expunge_all()
+
+    reloaded_receipt = session.get(RawMaterialReceipt, 41)
+    assert reloaded_receipt.status == RawMaterialReceiptStatus.APPROVED
+    assert reloaded_receipt.approved is True

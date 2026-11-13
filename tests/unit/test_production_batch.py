@@ -53,6 +53,47 @@ class TestRawMaterialReceipt:
         receipt = RawMaterialReceipt(id_=1, status=RawMaterialReceiptStatus.REJECTED)
         assert receipt.approved is False
 
+    def test_pending_receipt_can_be_approved_or_rejected(self):
+        approved = RawMaterialReceipt(id_=1, status=RawMaterialReceiptStatus.PENDING)
+        rejected = RawMaterialReceipt(id_=2, status=RawMaterialReceiptStatus.PENDING)
+
+        approved.approve()
+        rejected.reject()
+
+        assert approved.status == RawMaterialReceiptStatus.APPROVED
+        assert approved.approved is True
+        assert rejected.status == RawMaterialReceiptStatus.REJECTED
+        assert rejected.approved is False
+
+    def test_pending_receipt_can_be_quarantined_and_retested(self):
+        receipt = RawMaterialReceipt(id_=1, status=RawMaterialReceiptStatus.PENDING)
+
+        receipt.quarantine()
+        assert receipt.status == RawMaterialReceiptStatus.QUARANTINED
+        assert receipt.approved is False
+
+        receipt.approve()
+        assert receipt.status == RawMaterialReceiptStatus.APPROVED
+        assert receipt.approved is True
+
+    @pytest.mark.parametrize(
+        ("initial_status", "transition"),
+        [
+            (RawMaterialReceiptStatus.APPROVED, "reject"),
+            (RawMaterialReceiptStatus.APPROVED, "quarantine"),
+            (RawMaterialReceiptStatus.REJECTED, "approve"),
+            (RawMaterialReceiptStatus.REJECTED, "quarantine"),
+            (RawMaterialReceiptStatus.QUARANTINED, "quarantine"),
+        ],
+    )
+    def test_receipt_rejects_invalid_state_transitions(self, initial_status, transition):
+        receipt = RawMaterialReceipt(id_=1, status=initial_status)
+
+        with pytest.raises(ValueError):
+            getattr(receipt, transition)()
+
+        assert receipt.status == initial_status
+
 
 
 
