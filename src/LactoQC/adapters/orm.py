@@ -191,3 +191,13 @@ def start_mappers_production_batch():
             ),
         },
     )
+
+
+def start_all_mappers():
+    """Único ponto que sabe quais agregados têm mapeamento imperativo.
+
+    Um agregado novo acrescenta sua função start_mappers_* aqui, em adapters/,
+    sem que a camada web (flask_app.py) ou os testes precisem mudar.
+    """
+    start_mappers()
+    start_mappers_production_batch()

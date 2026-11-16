@@ -4,10 +4,9 @@ from __future__ import annotations
 import os
 
 from flask import Blueprint, Flask, current_app, g, jsonify
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from LactoQC.adapters import orm
+from LactoQC.adapters.database import build_session_factory
 
 DEFAULT_DATABASE_URL = "sqlite:///lactoqc.db"
 
@@ -20,15 +19,14 @@ def get_session() -> Session:
 
 
 def create_app(session_factory: sessionmaker | None = None) -> Flask:
-    """Em produção cria engine/tabelas via DATABASE_URL; nos testes recebe a session_factory."""
+    """Monta a aplicação web. A persistência é montada em adapters/database.py;
+    nos testes a session_factory é recebida pronta."""
     app = Flask(__name__)
 
     if session_factory is None:
-        engine = create_engine(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
-        orm.start_mappers()
-        orm.start_mappers_production_batch()
-        orm.metadata.create_all(engine)
-        session_factory = sessionmaker(bind=engine)
+        session_factory = build_session_factory(
+            os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+        )
 
     app.config["SESSION_FACTORY"] = session_factory
 
