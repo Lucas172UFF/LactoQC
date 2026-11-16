@@ -368,7 +368,26 @@ _(preencher)_
 
 ### André Meschesi Dantas
 
-_(preencher)_
+**O que fiz (entregue em 16/11/2026, depois do prazo de 03/11):** corrigi uma
+violação de SRP em `create_app` (`src/LactoQC/entrypoints/flask_app.py`), que
+além de montar a aplicação web também montava a persistência. Extraí a
+montagem para `src/LactoQC/adapters/database.py` (`build_session_factory`) e
+centralizei a lista de mapeamentos em `orm.start_all_mappers()`, usada também
+por `tests/conftest.py`. Escrevi os testes em
+`tests/integration/test_database.py` e a minha seção de `docs/solid.md`.
+Commit de código: `00f5522`. Commit "antes" citado: `d98d499`.
+
+**Decisão de projeto:** deixei a leitura de `DATABASE_URL` em `flask_app.py`
+e só a montagem do banco em `adapters/database.py`, porque ler a configuração
+do ambiente é papel do ponto de entrada, enquanto criar engine, mapeamentos e
+tabelas é papel da camada de adaptadores.
+
+**Uso de IA:** usei o Claude (claude.ai) para analisar o repositório e o
+enunciado, identificar a violação (o commit `d98d499` precisou editar
+`flask_app.py` por motivo de persistência), gerar o código da refatoração, os
+dois testes novos e o rascunho da minha seção de `docs/solid.md`. Revisei o
+código e o texto, rodei a suíte completa localmente antes do commit
+(`193 passed` antes, `195 passed` depois) e sou responsável pelo resultado.
 
 ## Checkpoint 3 — Padrões GoF (10/11)
 
@@ -406,4 +425,27 @@ _(preencher)_
 
 ### André Meschesi Dantas
 
-_(preencher)_
+**O que fiz (entregue em 16/11/2026, depois do prazo de 10/11):** apliquei o
+padrão Abstract Factory na API. Criei `AbstractRepositoryFactory`,
+`SqlAlchemyRepositoryFactory` e `InMemoryRepositoryFactory` em
+`src/LactoQC/adapters/repository.py` (para onde também movi o
+`FakeCollectionPointRepository`, antes em `tests/conftest.py`). Fiz
+`create_app` receber a fábrica (`src/LactoQC/entrypoints/flask_app.py`) e as
+rotas (`collection_point_routes.py`, `production_batch_routes.py`) pararem de
+instanciar repositórios SQLAlchemy. Escrevi
+`tests/unit/test_repository_factory.py` e a minha seção de `docs/gof.md`.
+Commit de código: `8f368e4`.
+
+**Decisão de projeto:** a fábrica recebe a sessão em cada chamada
+(`collection_points(session)`) em vez de receber repositórios prontos no boot,
+porque o repositório SQLAlchemy depende da sessão da requisição, que só existe
+dentro de cada request.
+
+**Uso de IA:** usei o Claude (claude.ai) para escolher o padrão a partir dos
+problemas do módulo de API (rotas acopladas aos repositórios concretos),
+comparar com as alternativas (Factory Method, injeção direta, Unit of Work),
+gerar o código, os testes, o diagrama Mermaid e o rascunho de `docs/gof.md`.
+Ao rodar a API sobre a família em memória apareceu o erro de
+`collection_point_id` na serialização, corrigido no mesmo commit. Revisei o
+código e o texto, rodei a suíte completa antes do commit (`201 passed`) e
+sou responsável pelo resultado.

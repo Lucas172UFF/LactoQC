@@ -103,3 +103,28 @@ no meio da entrega.
 - `DECISIONS.md` — Checkpoint 2, "Repositório sem commit"
 - Commits `6c41caa`, `95abde2`
 - Percival & Gregory, *Architecture Patterns with Python*, cap. 4 e 6
+
+## Revisão — Fase 2 (16/11/2026)
+
+**Autor da revisão:** André Meschesi Dantas
+
+A decisão deste ADR **continua valendo**: o commit segue no service layer.
+Duas mudanças da Fase 2 tocam o contexto descrito acima:
+
+- **Origem dos repositórios.** Com o padrão Abstract Factory (`docs/gof.md`,
+  commit `8f368e4`), as rotas não instanciam mais `SqlAlchemy*Repository`:
+  pedem o repositório a `get_repositories()`, que devolve a fábrica configurada
+  em `create_app`. A sessão continua sendo criada por requisição
+  (`get_session()`) e passada ao caso de uso, que faz o `commit()`. A fábrica
+  em memória (`InMemoryRepositoryFactory`) é usada com um `FakeSession`, de
+  forma que a mesma semântica transacional vale sem banco.
+- **Montagem da persistência.** A criação do engine e das tabelas saiu de
+  `flask_app.py` para `adapters/database.py` (refatoração SRP, `docs/solid.md`,
+  commit `00f5522`). As referências de linha da seção "Decisão" (`flask_app.py:15-19`,
+  `flask_app.py:35-39`, `tests/conftest.py:28`) se referem ao estado da Fase 1;
+  hoje o equivalente é `get_session()` e o `teardown_appcontext` de
+  `create_app`, e a classe `FakeSession` de `tests/conftest.py`.
+
+A alternativa C (Unit of Work) fica **mais barata** depois dessas mudanças: um
+`UnitOfWork` poderia receber uma `AbstractRepositoryFactory` e a sessão, e
+expor os repositórios e o `commit()` em um único objeto.

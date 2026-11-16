@@ -14,7 +14,7 @@ si dentro do grupo.
 | João Gabriel Pimentel | `CollectionPoint` (domínio) | Observer | Comportamental | ✅ Concluído |
 | Aloysio Felipe Saad Silva | _(preencher)_ | _(ex.: Strategy)_ | _(preencher)_ | ⬜ Pendente |
 | Lucas Ardelino Alves da Silva | _(preencher)_ | _(ex.: State)_ | _(preencher)_ | ⬜ Pendente |
-| André Meschesi Dantas | _(preencher)_ | _(ex.: Factory Method ou Decorator)_ | _(preencher)_ | ⬜ Pendente |
+| André Meschesi Dantas | Infraestrutura e API (`repository.py` + rotas) | Abstract Factory | Criacional | ✅ Concluído |
 
 ---
 
@@ -322,12 +322,202 @@ negócio do agregado + 5 dedicados ao padrão Strategy).
 
 ---
 
-## André Meschesi Dantas — _(preencher)_
+## André Meschesi Dantas — Abstract Factory no módulo de infraestrutura e API
 
-- Nome e categoria:
-- Contexto e problema:
-- Por que esse padrão (com alternativa considerada):
-- Participantes mapeados para classes reais:
-- Diagrama de classes (Mermaid/PlantUML):
-- Teste que exercita o padrão:
-- Custo da aplicação:
+> Entregue em 16/11/2026, depois do prazo do checkpoint 3 (10/11). Commit de
+> código: `8f368e4`.
+
+### Nome e categoria
+
+**Abstract Factory**, padrão **criacional**.
+
+### Contexto no sistema e problema que ele resolve
+
+O módulo sob minha responsabilidade é a infraestrutura compartilhada e a API
+(PROPOSTA §4.4): `entrypoints/flask_app.py`, as rotas e `adapters/repository.py`.
+Até este checkpoint, as rotas **instanciavam diretamente os repositórios
+concretos do SQLAlchemy**. Eram 4 ocorrências de `SqlAlchemyCollectionPointRepository(...)`
+em `collection_point_routes.py` e 6 de `SqlAlchemyProductionBatchRepository(...)`
+em `production_batch_routes.py`.
+
+Isso causava três problemas reais:
+
+1. **A API só funcionava com SQLAlchemy.** O cenário CQ-02 de
+   `docs/arquitetura.md` (trocar o mecanismo de persistência) exigiria editar
+   as 10 chamadas espalhadas pelas rotas. O service layer já era independente
+   da tecnologia (recebe `AbstractCollectionPointRepository`); a camada de
+   entrada, não.
+2. **Os repositórios em memória não chegavam até a API.** O projeto já tinha
+   `FakeCollectionPointRepository` (em `tests/conftest.py`) e
+   `FakeProductionBatchRepository` (em `adapters/repository.py`), mas eles só
+   eram usados nos testes do service layer. Qualquer teste da API dependia de
+   SQLite e do mapeamento global (risco R-01).
+3. **Nada garantia consistência entre agregados.** Os repositórios de
+   agregados diferentes precisam ser da **mesma família**: todos sobre a mesma
+   sessão SQLAlchemy, ou todos em memória. Misturar um repositório SQLAlchemy
+   de um agregado com um em memória de outro produziria um sistema que grava
+   metade dos dados.
+
+Ou seja: o problema é criar uma **família de objetos relacionados** (um
+repositório por agregado) que precisam ser compatíveis entre si, sem que o
+código cliente (as rotas) conheça as classes concretas. Essa é a intenção do
+Abstract Factory.
+
+### Por que esse padrão
+
+| Alternativa considerada | Por que foi descartada |
+|---|---|
+| **Factory Method** (cada blueprint com um `_repo()` sobrescrevível) | Resolve a criação de **um** produto por vez. Cada blueprint escolheria a tecnologia por conta própria, e nada impediria a mistura de famílias descrita no problema 3. Com o agregado Recebimento a caminho, a família vai crescer. |
+| **Injetar instâncias prontas de repositório em `create_app`** | O repositório SQLAlchemy depende da **sessão da requisição**, que só existe dentro de cada request (`get_session()`). Não é possível criá-lo uma vez, no boot. A fábrica adia a criação até a sessão existir. |
+| **`if app.config["TESTING"]` dentro de `_repo()`** | Espalha a decisão de tecnologia por todas as rotas, e uma terceira opção (outro banco, um cache) exigiria editar cada `if`. Viola o OCP. |
+| **Unit of Work** (alternativa C do ADR-0003) | Unificaria sessão, repositórios e commit, e é a solução mais completa. Mas exige mudar a assinatura de **todos** os casos de uso e de seus testes (eles recebem `repo, session`), e foi retirado do escopo da Fase 2 pelo enunciado. O Abstract Factory muda só a camada de entrada e é compatível com um UoW futuro: a fábrica seria o lugar onde o UoW obtém seus repositórios. |
+
+### Participantes mapeados para classes reais
+
+| Papel no padrão | Classe real | Arquivo |
+|---|---|---|
+| **AbstractFactory** | `AbstractRepositoryFactory` | `src/LactoQC/adapters/repository.py` |
+| **ConcreteFactory 1** (produção) | `SqlAlchemyRepositoryFactory` | `src/LactoQC/adapters/repository.py` |
+| **ConcreteFactory 2** (em memória) | `InMemoryRepositoryFactory` | `src/LactoQC/adapters/repository.py` |
+| **AbstractProduct A** | `AbstractCollectionPointRepository` | `src/LactoQC/adapters/repository.py` |
+| **AbstractProduct B** | `AbstractProductionBatchRepository` | `src/LactoQC/adapters/repository.py` |
+| **ConcreteProduct A1 / B1** | `SqlAlchemyCollectionPointRepository` / `SqlAlchemyProductionBatchRepository` | `src/LactoQC/adapters/repository.py` |
+| **ConcreteProduct A2 / B2** | `FakeCollectionPointRepository` / `FakeProductionBatchRepository` | `src/LactoQC/adapters/repository.py` |
+| **Client** | rotas `collection_point_routes.py` e `production_batch_routes.py` | `src/LactoQC/entrypoints/` |
+| Configuração da fábrica | `create_app(..., repository_factory=...)` e `get_repositories()` | `src/LactoQC/entrypoints/flask_app.py` |
+
+Funcionamento: `create_app` recebe uma `AbstractRepositoryFactory` (por padrão,
+`SqlAlchemyRepositoryFactory()`) e a guarda em `app.config["REPOSITORY_FACTORY"]`.
+As rotas pedem o repositório com `get_repositories().collection_points(get_session())`
+ou `.production_batches(...)`. Depois da mudança, **nenhuma rota importa uma
+classe `SqlAlchemy*`**. A única referência a uma família concreta na camada de
+entrada é o valor padrão em `create_app`.
+
+Para a família em memória existir em `src/`, o `FakeCollectionPointRepository`
+foi movido de `tests/conftest.py` para `adapters/repository.py`, ao lado do
+`FakeProductionBatchRepository`, que já estava lá. O `conftest.py` passou a
+importá-lo de lá.
+
+### Diagrama de classes
+
+```mermaid
+classDiagram
+    class AbstractRepositoryFactory {
+        <<interface>>
+        +collection_points(session) AbstractCollectionPointRepository
+        +production_batches(session) AbstractProductionBatchRepository
+    }
+    class SqlAlchemyRepositoryFactory {
+        +collection_points(session) SqlAlchemyCollectionPointRepository
+        +production_batches(session) SqlAlchemyProductionBatchRepository
+    }
+    class InMemoryRepositoryFactory {
+        -_collection_points: FakeCollectionPointRepository
+        -_production_batches: FakeProductionBatchRepository
+        +collection_points(session) FakeCollectionPointRepository
+        +production_batches(session) FakeProductionBatchRepository
+    }
+
+    class AbstractCollectionPointRepository {
+        <<interface>>
+        +add(collection_point)
+        +get(id_)
+        +list()
+    }
+    class AbstractProductionBatchRepository {
+        <<interface>>
+        +add(batch)
+        +get(batch_number)
+        +list()
+    }
+    class SqlAlchemyCollectionPointRepository
+    class FakeCollectionPointRepository
+    class SqlAlchemyProductionBatchRepository
+    class FakeProductionBatchRepository
+
+    class Rotas {
+        <<client>>
+        collection_point_routes
+        production_batch_routes
+    }
+
+    AbstractRepositoryFactory <|.. SqlAlchemyRepositoryFactory
+    AbstractRepositoryFactory <|.. InMemoryRepositoryFactory
+
+    AbstractCollectionPointRepository <|.. SqlAlchemyCollectionPointRepository
+    AbstractCollectionPointRepository <|.. FakeCollectionPointRepository
+    AbstractProductionBatchRepository <|.. SqlAlchemyProductionBatchRepository
+    AbstractProductionBatchRepository <|.. FakeProductionBatchRepository
+
+    SqlAlchemyRepositoryFactory ..> SqlAlchemyCollectionPointRepository : cria
+    SqlAlchemyRepositoryFactory ..> SqlAlchemyProductionBatchRepository : cria
+    InMemoryRepositoryFactory ..> FakeCollectionPointRepository : cria
+    InMemoryRepositoryFactory ..> FakeProductionBatchRepository : cria
+
+    Rotas --> AbstractRepositoryFactory : get_repositories()
+    Rotas --> AbstractCollectionPointRepository : usa
+    Rotas --> AbstractProductionBatchRepository : usa
+```
+
+### Testes que exercitam o padrão
+
+Arquivo `tests/unit/test_repository_factory.py`:
+
+- `test_sqlalchemy_factory_creates_the_whole_sqlalchemy_family_on_the_same_session`:
+  a fábrica de produção cria os dois repositórios SQLAlchemy **sobre a mesma
+  sessão**, que é a garantia de consistência da família.
+- `test_in_memory_factory_creates_the_whole_in_memory_family`: a outra
+  ConcreteFactory cria a família inteira em memória.
+- `test_in_memory_factory_keeps_state_between_requests`: a família em memória
+  devolve os mesmos repositórios a cada chamada, simulando um banco que
+  persiste entre requisições.
+- `test_create_app_uses_sqlalchemy_family_by_default`: sem nada injetado, a
+  aplicação usa a família de produção, e o comportamento da Fase 1 é preservado.
+- `test_api_runs_unchanged_on_the_in_memory_family_without_a_database`:
+  **o teste central do padrão**. A mesma API, sem nenhuma mudança nas rotas,
+  roda sobre a família em memória e sem banco algum: cria um ponto de coleta,
+  registra uma medição fora da faixa, recebe a não conformidade e a consulta.
+- `test_a_new_factory_can_be_plugged_without_changing_the_routes`: uma terceira
+  ConcreteFactory, escrita só no teste, é plugada em `create_app` e passa a ser
+  usada pelas rotas.
+
+Suíte completa: `195 passed` antes deste commit e `201 passed` depois.
+Todos os testes e2e existentes, que usam a família SQLAlchemy, passaram sem
+alteração.
+
+**Um problema que o padrão revelou.** Na primeira execução da API sobre a
+família em memória, a rota de medição quebrou com
+`AttributeError: 'NonConformity' object has no attribute 'collection_point_id'`.
+A serialização `_non_conformity_json` lia uma coluna que **só existe quando o
+objeto passa pelo ORM** (a chave estrangeira mapeada em `orm.py`), e não no
+modelo de domínio. Corrigi passando o id do ponto de coleta explicitamente
+quando a rota já o conhece. Era um acoplamento da API ao ORM que os testes
+e2e, por usarem sempre o banco, nunca teriam mostrado.
+
+### Custo da aplicação do padrão
+
+- **Indireção:** para saber qual repositório uma rota usa, agora é preciso
+  olhar `create_app` e a fábrica configurada, e não mais a própria rota.
+- **Adicionar um agregado custa mais:** essa é a desvantagem clássica do
+  Abstract Factory. Um novo tipo de produto (por exemplo, o repositório do
+  Recebimento) exige um método abstrato novo em `AbstractRepositoryFactory` e
+  uma implementação em **cada** fábrica concreta.
+- **Parâmetro ignorado:** `InMemoryRepositoryFactory` recebe `session` e não o
+  usa. A interface é um pouco artificial para manter as duas famílias
+  intercambiáveis.
+- **Código de teste em `src/`:** `FakeCollectionPointRepository` passou a
+  morar em `adapters/repository.py`. É a mesma escolha que o grupo já tinha
+  feito para `FakeProductionBatchRepository`.
+- **Limitação conhecida:** na família em memória, o mesmo objeto
+  `CollectionPoint` sobrevive entre requisições, e a rota de medição registra o
+  `LoggingNonConformityObserver` a cada chamada (padrão Observer do João).
+  Assim, os observers se acumulam e o log fica duplicado. Na família
+  SQLAlchemy isso não acontece, porque cada requisição carrega um objeto novo.
+  Como a família em memória é usada só em testes, deixei registrado aqui em vez
+  de alterar o código do agregado de outro integrante.
+
+**Por que compensa:** a decisão "qual tecnologia de persistência a API usa"
+passou de 10 pontos espalhados pelas rotas para **um parâmetro de
+`create_app`**. Isso atende diretamente ao CQ-02, permite testar a API inteira
+sem banco e deixou o caminho pronto para um Unit of Work, se o grupo decidir
+adotá-lo.

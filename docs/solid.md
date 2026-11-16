@@ -14,7 +14,7 @@ violação é exposta por uma mudança de requisito plausível descrita na seç�
 | João Gabriel Pimentel | `CollectionPoint` (domínio) | OCP | ✅ Concluído |
 | Aloysio Felipe Saad Silva | _(preencher)_ | _(preencher)_ | ⬜ Pendente |
 | Lucas Ardelino Alves da Silva | _(preencher)_ | _(preencher)_ | ⬜ Pendente |
-| André Meschesi Dantas | _(preencher)_ | _(preencher)_ | ⬜ Pendente |
+| André Meschesi Dantas | Infraestrutura e API (`flask_app.py`) | SRP | ✅ Concluído |
 
 ---
 
@@ -217,12 +217,121 @@ Por que compensa: o custo é oito classes pequenas e sem estado mutável relevan
 
 ---
 
-## André Meschesi Dantas — _(preencher)_
+## André Meschesi Dantas — `entrypoints/flask_app.py` (Infraestrutura compartilhada e API)
 
-- Princípio violado:
-- Commit "antes":
-- Trecho de código:
-- Problema concreto:
-- Commit "depois":
-- Como os testes garantiram que o comportamento não mudou:
-- Custo e por que compensa:
+> Entregue em 16/11/2026, depois do prazo do checkpoint 2 (03/11).
+
+### Princípio violado: Single Responsibility Principle (SRP)
+
+**Commit "antes":** `d98d499` (30/09/2026), o último commit anterior a 06/10 que
+alterou `src/LactoQC/entrypoints/flask_app.py`.
+
+```python
+# src/LactoQC/entrypoints/flask_app.py @ d98d499
+def create_app(session_factory: sessionmaker | None = None) -> Flask:
+    """Em produção cria engine/tabelas via DATABASE_URL; nos testes recebe a session_factory."""
+    app = Flask(__name__)
+
+    if session_factory is None:
+        engine = create_engine(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
+        orm.start_mappers()
+        orm.start_mappers_production_batch()
+        orm.metadata.create_all(engine)
+        session_factory = sessionmaker(bind=engine)
+
+    app.config["SESSION_FACTORY"] = session_factory
+    ...
+```
+
+### O problema concreto
+
+`create_app` é a *app factory* do Flask. Pela responsabilidade que tem, só
+deveria mudar por motivos da camada web: registrar blueprints, tratar erros,
+abrir e fechar a sessão de cada requisição. Mas ela também **montava a
+persistência**: criava o engine, sabia **quais funções de mapeamento existem**
+e criava as tabelas. São dois motivos de mudança, de dois responsáveis
+diferentes: quem mantém a API e quem mantém o mapeamento de cada agregado.
+
+A evidência está no histórico. No commit `d98d499`, o Aloysio adicionou o
+agregado Lote de Produção e teve de editar `flask_app.py` por um motivo
+**puramente de persistência**:
+
+```diff
+         orm.start_mappers()
++        orm.start_mappers_production_batch()
+         orm.metadata.create_all(engine)
+```
+
+E o conhecimento "quais mapeamentos existem" não estava só ali. O mesmo par
+`start_mappers()` / `start_mappers_production_batch()` aparecia em **três
+lugares**: em `create_app` e em duas fixtures de `tests/conftest.py`
+(`session_factory` e `sqlite_session_production_batch`). Qualquer agregado novo
+com mapeamento próprio (por exemplo, o Recebimento de matéria-prima, previsto
+na PROPOSTA §4.1) exigiria editar os três. Esquecer um deles é justamente a
+falha descrita no risco R-01 de `docs/arquitetura.md` (mapeamento como estado
+global: um erro de mapeamento derruba tudo).
+
+Havia ainda um efeito colateral: o caminho de produção de `create_app` (sem
+`session_factory`) **não era testado por nenhum teste**, porque os testes
+sempre injetavam a fábrica de sessões. A lógica de montar o banco ficava
+escondida dentro da app factory, sem cobertura.
+
+### A refatoração
+
+**Commit "depois":** `00f5522` (meu).
+
+1. **`src/LactoQC/adapters/database.py` (novo).** `build_session_factory(database_url)`
+   cria o engine, ativa os mapeamentos, cria as tabelas e devolve o `sessionmaker`.
+   A persistência passa a ser montada na camada de adaptadores, que é onde ela
+   pertence.
+2. **`src/LactoQC/adapters/orm.py`.** Nova função `start_all_mappers()`, que é o
+   **único** lugar que lista os mapeamentos dos agregados.
+3. **`src/LactoQC/entrypoints/flask_app.py`.** `create_app` só delega:
+
+   ```python
+   if session_factory is None:
+       session_factory = build_session_factory(
+           os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+       )
+   ```
+
+   O módulo não importa mais `create_engine` nem `orm`.
+4. **`tests/conftest.py`.** As duas fixtures passam a chamar `start_all_mappers()`.
+
+Com isso, adicionar um agregado com mapeamento próprio muda **um arquivo da
+camada de adaptadores** (`orm.py`), em vez de três arquivos em duas camadas
+diferentes.
+
+### Como os testes garantiram que o comportamento não mudou
+
+- A suíte completa passava antes (`193 passed`) e continuou passando depois
+  (`195 passed`). Nenhum teste existente foi alterado; em `tests/conftest.py`
+  mudou só a forma de ativar os mapeamentos.
+- Os testes e2e (`tests/e2e/`) criam a aplicação por `create_app(session_factory)`
+  e exercitam todas as rotas dos dois agregados. Eles provam que a parte web da
+  app factory continuou igual.
+- O caminho de produção, que não tinha teste nenhum, ganhou dois testes em
+  `tests/integration/test_database.py`:
+  - `test_build_session_factory_maps_all_aggregates_and_creates_tables`: com
+    um banco SQLite em memória, os repositórios dos dois agregados conseguem
+    consultar o banco, o que só acontece se todos os mapeamentos e tabelas
+    existirem.
+  - `test_create_app_without_session_factory_uses_database_url`: com
+    `DATABASE_URL` apontando para SQLite em memória, `create_app()` sobe e
+    responde `/health` e `/production-batches`.
+
+### O custo e por que compensa
+
+**Custo:** um módulo a mais (`database.py`, 18 linhas) e uma função a mais em
+`orm.py`. Para saber como o banco é montado em produção, agora é preciso abrir
+um arquivo a mais. Além disso, a refatoração **não elimina** a edição a cada
+agregado novo: `start_all_mappers()` ainda precisa ganhar uma linha. O que muda
+é **onde** essa edição acontece.
+
+**Por que compensa:** a mudança que antes se espalhava por três lugares, em duas
+camadas, passa a acontecer em um lugar só, na camada que é dona do assunto.
+`flask_app.py` volta a ter um único motivo de mudança (a configuração web), e o
+caminho de produção da aplicação ganhou cobertura de teste que não existia.
+Essa separação também preparou o padrão GoF do checkpoint 3 (ver `docs/gof.md`):
+com a persistência fora de `create_app`, a app factory passou a ser o lugar
+natural para escolher **qual família de repositórios** a API usa.
