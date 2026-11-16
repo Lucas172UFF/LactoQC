@@ -6,14 +6,13 @@ from flask import Blueprint, abort, jsonify, request
 
 from LactoQC.adapters.repository import (
     AbstractProductionBatchRepository,
-    SqlAlchemyProductionBatchRepository,
 )
 from LactoQC.domain.model import (
     BatchStatus,
     RawMaterialReceipt,
     RawMaterialReceiptStatus,
 )
-from LactoQC.entrypoints.flask_app import get_session
+from LactoQC.entrypoints.flask_app import get_repositories, get_session
 from LactoQC.service_layer import services
 
 
@@ -21,7 +20,7 @@ bp = Blueprint("production_batches", __name__)
 
 
 def _repo() -> AbstractProductionBatchRepository:
-    return SqlAlchemyProductionBatchRepository(get_session())
+    return get_repositories().production_batches(get_session())
 
 
 def _json_body() -> dict:
@@ -182,7 +181,7 @@ def create_production_batch():
     session = get_session()
 
     batch = services.create_production_batch(
-        SqlAlchemyProductionBatchRepository(session),
+        get_repositories().production_batches(session),
         session,
         batch_number=body["batch_number"],
         production_date=production_date,
@@ -224,7 +223,7 @@ def register_weight_sample(batch_number: str):
     session = get_session()
 
     sample, new_ncs = services.register_weight_sample(
-        SqlAlchemyProductionBatchRepository(session),
+        get_repositories().production_batches(session),
         session,
         batch_number=batch_number,
         weight_kg=body["weight_kg"],
@@ -262,7 +261,7 @@ def register_lecithinization(batch_number: str):
     session = get_session()
 
     lecithinization = services.register_lecithinization(
-        SqlAlchemyProductionBatchRepository(session),
+        get_repositories().production_batches(session),
         session,
         batch_number=batch_number,
         performed=body["performed"],
@@ -295,7 +294,7 @@ def register_wettability_result(batch_number: str):
     session = get_session()
 
     result, new_ncs = services.register_wettability_result(
-        SqlAlchemyProductionBatchRepository(session),
+        get_repositories().production_batches(session),
         session,
         batch_number=batch_number,
         result=body["result"],
@@ -316,7 +315,7 @@ def release_production_batch(batch_number: str):
     session = get_session()
 
     batch, new_ncs = services.release_production_batch(
-        SqlAlchemyProductionBatchRepository(session),
+        get_repositories().production_batches(session),
         session,
         batch_number,
     )

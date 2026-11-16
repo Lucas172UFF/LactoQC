@@ -40,6 +40,26 @@ class SqlAlchemyCollectionPointRepository(AbstractCollectionPointRepository):
         )
 
 
+class FakeCollectionPointRepository(AbstractCollectionPointRepository):
+    """Repositório em memória (antes em tests/conftest.py); simula o autoincremento do banco."""
+
+    def __init__(self):
+        self._collection_points = {}
+        self._next_id = 1
+
+    def add(self, collection_point: CollectionPoint) -> None:
+        if collection_point.id_ is None:
+            collection_point.id_ = self._next_id
+        self._next_id = max(self._next_id, collection_point.id_ + 1)
+        self._collection_points[collection_point.id_] = collection_point
+
+    def get(self, id_: int) -> Optional[CollectionPoint]:
+        return self._collection_points.get(id_)
+
+    def list(self) -> List[CollectionPoint]:
+        return list(self._collection_points.values())
+
+
 class AbstractProductionBatchRepository(ABC):
 
     @abstractmethod
@@ -90,3 +110,46 @@ class FakeProductionBatchRepository(AbstractProductionBatchRepository):
 
     def list(self) -> List[ProductionBatch]:
         return list(self._batches)
+
+
+# --- Padrão GoF Abstract Factory (docs/gof.md) -----------------------------
+# Família de produtos: um repositório por agregado. Cada fábrica concreta cria
+# a família inteira de uma mesma "tecnologia", para que as rotas nunca misturem
+# um repositório SQLAlchemy com um em memória nem conheçam as classes concretas.
+
+
+class AbstractRepositoryFactory(ABC):
+    """AbstractFactory: cria os repositórios de todos os agregados."""
+
+    @abstractmethod
+    def collection_points(self, session) -> AbstractCollectionPointRepository:
+        raise NotImplementedError
+
+    @abstractmethod
+    def production_batches(self, session) -> AbstractProductionBatchRepository:
+        raise NotImplementedError
+
+
+class SqlAlchemyRepositoryFactory(AbstractRepositoryFactory):
+    """ConcreteFactory de produção: repositórios sobre a sessão da requisição."""
+
+    def collection_points(self, session: Session) -> AbstractCollectionPointRepository:
+        return SqlAlchemyCollectionPointRepository(session)
+
+    def production_batches(self, session: Session) -> AbstractProductionBatchRepository:
+        return SqlAlchemyProductionBatchRepository(session)
+
+
+class InMemoryRepositoryFactory(AbstractRepositoryFactory):
+    """ConcreteFactory em memória: os mesmos repositórios valem para todas as
+    requisições da aplicação, simulando um banco que persiste entre chamadas."""
+
+    def __init__(self):
+        self._collection_points = FakeCollectionPointRepository()
+        self._production_batches = FakeProductionBatchRepository()
+
+    def collection_points(self, session) -> AbstractCollectionPointRepository:
+        return self._collection_points
+
+    def production_batches(self, session) -> AbstractProductionBatchRepository:
+        return self._production_batches

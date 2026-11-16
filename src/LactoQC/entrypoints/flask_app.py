@@ -7,6 +7,7 @@ from flask import Blueprint, Flask, current_app, g, jsonify
 from sqlalchemy.orm import Session, sessionmaker
 
 from LactoQC.adapters.database import build_session_factory
+from LactoQC.adapters.repository import AbstractRepositoryFactory, SqlAlchemyRepositoryFactory
 
 DEFAULT_DATABASE_URL = "sqlite:///lactoqc.db"
 
@@ -18,7 +19,15 @@ def get_session() -> Session:
     return g.session
 
 
-def create_app(session_factory: sessionmaker | None = None) -> Flask:
+def get_repositories() -> AbstractRepositoryFactory:
+    """Fábrica de repositórios (Abstract Factory) configurada na aplicação."""
+    return current_app.config["REPOSITORY_FACTORY"]
+
+
+def create_app(
+    session_factory: sessionmaker | None = None,
+    repository_factory: AbstractRepositoryFactory | None = None,
+) -> Flask:
     """Monta a aplicação web. A persistência é montada em adapters/database.py;
     nos testes a session_factory é recebida pronta."""
     app = Flask(__name__)
@@ -29,6 +38,7 @@ def create_app(session_factory: sessionmaker | None = None) -> Flask:
         )
 
     app.config["SESSION_FACTORY"] = session_factory
+    app.config["REPOSITORY_FACTORY"] = repository_factory or SqlAlchemyRepositoryFactory()
 
     @app.teardown_appcontext
     def close_session(_exc):

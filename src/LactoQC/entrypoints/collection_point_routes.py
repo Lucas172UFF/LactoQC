@@ -4,8 +4,8 @@ from datetime import datetime, date
 
 from flask import Blueprint, abort, jsonify, request
 
-from LactoQC.adapters.repository import AbstractCollectionPointRepository, SqlAlchemyCollectionPointRepository
-from LactoQC.entrypoints.flask_app import get_session
+from LactoQC.adapters.repository import AbstractCollectionPointRepository
+from LactoQC.entrypoints.flask_app import get_repositories, get_session
 from LactoQC.service_layer import services
 from LactoQC.service_layer.notifications import LoggingNonConformityObserver
 
@@ -23,7 +23,7 @@ def _parse_date(raw: str | None, field: str):
         raise ValueError(f"'{field}' must be an ISO 8601 date (e.g. 2026-09-29).")
 
 def _repo() -> AbstractCollectionPointRepository:
-    return SqlAlchemyCollectionPointRepository(get_session())
+    return get_repositories().collection_points(get_session())
 
 
 def _json_body() -> dict:
@@ -67,10 +67,15 @@ def _measurement_json(m) -> dict:
     }
 
 
-def _non_conformity_json(nc) -> dict:
+def _non_conformity_json(nc, collection_point_id: int | None = None) -> dict:
+    # collection_point_id é uma coluna preenchida só pelo ORM; quando a rota já
+    # conhece o ponto de coleta, usa o valor explícito (necessário para a
+    # família de repositórios em memória — ver docs/gof.md).
+    if collection_point_id is None:
+        collection_point_id = getattr(nc, "collection_point_id", None)
     return {
         "number": nc.id_,
-        "collection_point_id": nc.collection_point_id,
+        "collection_point_id": collection_point_id,
         "measurement_id": nc.measurement.id_,
         "measurement_type": nc.measurement.measurement_type.name,
         "value": nc.measurement.value,
@@ -89,7 +94,7 @@ def _collection_point_json(cp, detailed: bool = False) -> dict:
     }
     if detailed:
         data["measurements"] = [_measurement_json(m) for m in cp.measurements]
-        data["non_conformities"] = [_non_conformity_json(n) for n in cp.non_conformities]
+        data["non_conformities"] = [_non_conformity_json(n, cp.id_) for n in cp.non_conformities]
         data["daily_closures"] = [c.day.isoformat() for c in cp.daily_closures]
     return data
 
@@ -102,7 +107,7 @@ def create_collection_point():
         abort(400, description="'specifications' must be a list.")
     session = get_session()
     cp = services.create_collection_point(
-        SqlAlchemyCollectionPointRepository(session), session,
+        get_repositories().collection_points(session), session,
         name=body["name"], location=body["location"], specifications=body["specifications"],
     )
     return jsonify(_collection_point_json(cp)), 201
@@ -120,14 +125,14 @@ def register_measurement(collection_point_id: int):
     _require(body, "measurement_type", "value")
     session = get_session()
     measurement, new_ncs = services.register_measurement(
-        SqlAlchemyCollectionPointRepository(session), session, collection_point_id,
+        get_repositories().collection_points(session), session, collection_point_id,
         measurement_type=body["measurement_type"], value=body["value"],
         measurement_date=_parse_datetime(body.get("measurement_date"), "measurement_date"),
         observers=_non_conformity_observers,
     )
     return jsonify(
         measurement=_measurement_json(measurement),
-        non_conformities=[_non_conformity_json(n) for n in new_ncs],
+        non_conformities=[_non_conformity_json(n, collection_point_id) for n in new_ncs],
     ), 201
 
 
@@ -152,7 +157,7 @@ def close_daily_record(collection_point_id: int):
     _require(body, "date")
     session = get_session()
     closure = services.close_daily_record(
-        SqlAlchemyCollectionPointRepository(session), session, collection_point_id,
+        get_repositories().collection_points(session), session, collection_point_id,
         day=_parse_date(body["date"], "date"),
     )
     return jsonify(collection_point_id=collection_point_id, date=closure.day.isoformat()), 201
