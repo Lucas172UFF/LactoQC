@@ -364,7 +364,11 @@ _(preencher)_
 
 ### Lucas Ardelino Alves da Silva
 
-_(preencher)_
+**O que fiz:** contribuí para a refatoração do ciclo de vida de `RawMaterialReceipt` em `src/LactoQC/domain/model.py`, ajustei o mapeamento em `src/LactoQC/adapters/orm.py` e acrescentei testes unitários e de integração em `tests/unit/test_production_batch.py` e `tests/integration/test_orm.py`. A mudança introduz o estado de quarentena e transições explícitas para o recebimento. Commit de código: `bdbad53`. A seção correspondente foi registrada em `docs/solid.md` no commit `ebdadb2`.
+
+**Decisão de projeto:** usei o ciclo de vida do recebimento como cenário de extensão: um resultado inconclusivo pode levar à quarentena e a um reteste. Separei os comportamentos por estado para que as transições permitidas fiquem explícitas e estados terminais recusem operações inválidas, preservando o enum como representação persistida pelo ORM.
+
+**Uso de IA:** usei o ChatGPT/Codex em conjunto com a análise do repositório para discutir como uma mudança plausível — colocar um recebimento inconclusivo em quarentena para reteste — poderia expor um problema de extensibilidade. Depois de avaliarmos a proposta, decidi seguir com a refatoração de `RawMaterialReceipt` e revisar a solução com o padrão State. A IA ajudou a produzir o código, os testes e um rascunho da documentação. Eu conferi e aprovei as alterações antes do commit e sou responsável pelo resultado. A CI do GitHub para `bdbad53` passou.
 
 ### André Meschesi Dantas
 
@@ -421,7 +425,11 @@ _(preencher)_
 
 ### Lucas Ardelino Alves da Silva
 
-_(preencher)_
+**O que fiz:** apliquei o padrão State ao ciclo de vida de `RawMaterialReceipt` em `src/LactoQC/domain/model.py`, com os estados pendente, em quarentena, aprovado e rejeitado. Acrescentei cobertura para transições válidas e inválidas e para persistência e recarga pelo SQLAlchemy em `tests/unit/test_production_batch.py` e `tests/integration/test_orm.py`. Commit de implementação: `bdbad53`; documentação do padrão em `docs/gof.md`: `ebdadb2`.
+
+**Decisão de projeto:** escolhi State para deixar as operações permitidas dependerem do estado atual do recebimento. Assim, a entidade delega as transições ao objeto de estado correspondente, e o ORM continua armazenando o enum na coluna existente.
+
+**Uso de IA:** usei o ChatGPT/Codex para analisar o ciclo de vida do recebimento e comparar a solução State com regras condicionais centralizadas. Discutimos a estrutura, e decidi seguir com State para representar as transições permitidas. A IA ajudou a produzir o código, os testes e o diagrama Mermaid de `docs/gof.md`; eu revisei e aprovei o material e sou responsável pela entrega. A CI do GitHub para `bdbad53` passou.
 
 ### André Meschesi Dantas
 
@@ -449,3 +457,11 @@ Ao rodar a API sobre a família em memória apareceu o erro de
 `collection_point_id` na serialização, corrigido no mesmo commit. Revisei o
 código e o texto, rodei a suíte completa antes do commit (`201 passed`) e
 sou responsável pelo resultado.
+
+## Reflexão final — Lucas Ardelino Alves da Silva
+
+Durante a Fase 2 aprendi que um padrão ajuda quando responde a uma necessidade concreta do sistema. No recebimento de matéria-prima, a possibilidade de colocar um resultado inconclusivo em quarentena tornou necessário representar quais transições são válidas. O State deixou essas regras explícitas e me ajudou a pensar também nos estados terminais e no comportamento após recarregar o objeto do banco.
+
+Também percebi que uma decisão de domínio precisa continuar funcionando na arquitetura que já existe. Como o SQLAlchemy reconstrói objetos sem chamar seu construtor, foi preciso manter o enum como dado persistido e mapear o atributo interno usado pelo modelo. Os testes unitários cobrem as transições; o teste de integração cobre a persistência, e a CI passou para o commit da implementação.
+
+Eu faria diferente o planejamento: começaria a análise SOLID e a escolha do padrão antes dos prazos dos checkpoints, registraria as decisões e hashes enquanto trabalhasse e reservaria tempo para revisar a suíte e a documentação em conjunto. O apoio de IA foi útil para explorar alternativas e estruturar código e texto, mas também reforçou que eu preciso conferir cada afirmação com o repositório e declarar esse apoio com clareza.
