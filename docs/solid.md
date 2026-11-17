@@ -13,7 +13,7 @@ violação é exposta por uma mudança de requisito plausível descrita na seç�
 |---|---|---|---|
 | João Gabriel Pimentel | `CollectionPoint` (domínio) | OCP | ✅ Concluído |
 | Aloysio Felipe Saad Silva | _(preencher)_ | _(preencher)_ | ⬜ Pendente |
-| Lucas Ardelino Alves da Silva | _(preencher)_ | _(preencher)_ | ⬜ Pendente |
+| Lucas Ardelino Alves da Silva | `RawMaterialReceipt` (domínio) | OCP | ✅ Concluído |
 | André Meschesi Dantas | Infraestrutura e API (`flask_app.py`) | SRP | ✅ Concluído |
 
 ---
@@ -205,15 +205,58 @@ Custo: quatro novas interfaces (SampleWeightRule, LecithinizationRule, MilkTypeC
 Por que compensa: o custo é oito classes pequenas e sem estado mutável relevante (cada uma com um único método, check); o que ele evita é editar ProductionBatch — a Aggregate Root do agregado, coberta por 44 testes unitários e pelos testes e2e da API — toda vez que uma regra de qualidade muda ou uma nova é adicionada. Na mesma lógica de custo de modificabilidade discutida para o CollectionPoint, o ganho aqui é concentrar uma mudança de regra de negócio em uma classe nova e isolada, em vez de um if a mais dentro de um método já testado do agregado central. Como a PROPOSTA.md já aponta o Lote de Produção como o agregado com mais regras de negócio específicas por tipo de produto, essa é uma mudança com probabilidade concreta de se repetir ao longo da Fase 2.
 ---
 
-## Lucas Ardelino Alves da Silva — _(preencher)_
+## Lucas Ardelino Alves da Silva — `RawMaterialReceipt` (agregado de recebimento)
 
-- Princípio violado:
-- Commit "antes":
-- Trecho de código:
-- Problema concreto:
-- Commit "depois":
-- Como os testes garantiram que o comportamento não mudou:
-- Custo e por que compensa:
+### Princípio violado: Open/Closed Principle (OCP), exposto por uma mudança plausível de requisito
+
+**Código anterior:** [`2919fc4`](../../commit/2919fc4), de 29/09/2026.
+
+```python
+class RawMaterialReceipt:
+    def __init__(self, id_: int, status: RawMaterialReceiptStatus):
+        self.id_ = id_
+        self.status = status
+
+    @property
+    def approved(self) -> bool:
+        return self.status == RawMaterialReceiptStatus.APPROVED
+```
+
+### O problema concreto
+
+O recebimento armazenava um status que podia ser alterado diretamente, sem
+representar quais transições eram permitidas. Uma mudança plausível para o
+domínio é colocar em quarentena uma matéria-prima com resultado inconclusivo e
+permitir sua aprovação ou reprovação depois de um reteste. Sem uma estrutura
+para essas regras, a lógica de cada novo estado e suas transições acabaria
+concentrada no próprio recebimento ou espalhada pelos chamadores, exigindo
+modificações à medida que o ciclo de vida crescesse.
+
+### A refatoração
+
+**Commit "depois":** [`bdbad53`](../../commit/bdbad53) — `feat: adiciona ciclo State ao recebimento de matéria-prima`.
+
+Introduzi estados separados para pendente, em quarentena, aprovado e rejeitado.
+`RawMaterialReceipt` delega as operações ao estado atual; seu status passou a
+ser somente leitura, e transições inválidas lançam `ValueError`. O registro
+`_RECEIPT_STATES` associa cada status à implementação correspondente. O ORM
+continua persistindo o enum na coluna existente, agora mapeada para `_status`.
+
+### Como os testes cobrem a mudança
+
+`tests/unit/test_production_batch.py::TestRawMaterialReceipt` cobre aprovação,
+reprovação, quarentena, reteste e transições inválidas.
+`tests/integration/test_orm.py::test_receipt_state_transitions_survive_orm_reload`
+cobre as transições depois de salvar e recarregar o recebimento pelo SQLAlchemy.
+A [CI do commit `bdbad53`](https://github.com/Lucas172UFF/LactoQC/actions/runs/43351331311)
+passou.
+
+### O custo e por que compensa
+
+A mudança acrescenta quatro classes de estado e um registro que associa status
+a estados. Também exige mapear `_status` para a coluna `status` do banco. Esse
+custo mantém as regras de transição junto dos estados correspondentes e evita
+que o recebimento aceite alterações arbitrárias de status.
 
 ---
 

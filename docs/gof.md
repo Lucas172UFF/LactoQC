@@ -13,7 +13,7 @@ si dentro do grupo.
 |---|---|---|---|---|
 | João Gabriel Pimentel | `CollectionPoint` (domínio) | Observer | Comportamental | ✅ Concluído |
 | Aloysio Felipe Saad Silva | _(preencher)_ | _(ex.: Strategy)_ | _(preencher)_ | ⬜ Pendente |
-| Lucas Ardelino Alves da Silva | _(preencher)_ | _(ex.: State)_ | _(preencher)_ | ⬜ Pendente |
+| Lucas Ardelino Alves da Silva | `RawMaterialReceipt` (domínio) | State | Comportamental | ✅ Concluído |
 | André Meschesi Dantas | Infraestrutura e API (`repository.py` + rotas) | Abstract Factory | Criacional | ✅ Concluído |
 
 ---
@@ -310,15 +310,96 @@ negócio do agregado + 5 dedicados ao padrão Strategy).
 
 ---
 
-## Lucas Ardelino Alves da Silva — _(preencher)_
+## Lucas Ardelino Alves da Silva — State em `RawMaterialReceipt`
 
-- Nome e categoria:
-- Contexto e problema:
-- Por que esse padrão (com alternativa considerada):
-- Participantes mapeados para classes reais:
-- Diagrama de classes (Mermaid/PlantUML):
-- Teste que exercita o padrão:
-- Custo da aplicação:
+### Nome e categoria
+
+**State**, padrão **comportamental**.
+
+### Contexto no sistema e problema que ele resolve
+
+Um recebimento de matéria-prima pode estar pendente, em quarentena, aprovado
+ou rejeitado. As operações permitidas dependem do estado atual: um recebimento
+pendente pode ser aprovado, rejeitado ou colocado em quarentena; um recebimento
+em quarentena pode ser aprovado ou rejeitado depois de um reteste; os estados
+aprovado e rejeitado não aceitam essas transições. Antes da aplicação do padrão,
+o status era um valor diretamente alterável e o modelo não expressava essas
+regras.
+
+### Por que esse padrão
+
+State permite que as transições variem conforme o estado atual do recebimento.
+Considerei manter as regras em condicionais dentro de `RawMaterialReceipt`,
+mas isso centralizaria o ciclo de vida na entidade e exigiria editar as
+condicionais quando novas transições fossem adicionadas.
+
+### Participantes mapeados para classes reais
+
+| Papel no padrão | Classe no código |
+|---|---|
+| Contexto | `RawMaterialReceipt` |
+| Interface de estado | `RawMaterialReceiptState` |
+| Estado concreto | `PendingReceiptState` |
+| Estado concreto | `QuarantinedReceiptState` |
+| Estado concreto | `ApprovedReceiptState` |
+| Estado concreto | `RejectedReceiptState` |
+| Registro dos estados | `_RECEIPT_STATES` |
+| Representação persistida do estado | `RawMaterialReceiptStatus` |
+
+### Diagrama de classes
+
+```mermaid
+classDiagram
+    class RawMaterialReceipt {
+        -_status: RawMaterialReceiptStatus
+        +status: RawMaterialReceiptStatus
+        +approved: bool
+        +approve()
+        +reject()
+        +quarantine()
+        +state: RawMaterialReceiptState
+    }
+
+    class RawMaterialReceiptState {
+        <<abstract>>
+        +status: RawMaterialReceiptStatus
+        +approve()
+        +reject()
+        +quarantine()
+    }
+
+    class PendingReceiptState
+    class QuarantinedReceiptState
+    class ApprovedReceiptState
+    class RejectedReceiptState
+    class RawMaterialReceiptStatus
+
+    RawMaterialReceipt --> RawMaterialReceiptState : delega operações
+    RawMaterialReceipt --> RawMaterialReceiptStatus : persiste status
+    RawMaterialReceiptState <|-- PendingReceiptState
+    RawMaterialReceiptState <|-- QuarantinedReceiptState
+    RawMaterialReceiptState <|-- ApprovedReceiptState
+    RawMaterialReceiptState <|-- RejectedReceiptState
+```
+
+### Teste que exercita o padrão
+
+`tests/unit/test_production_batch.py::TestRawMaterialReceipt::test_pending_receipt_can_be_quarantined_and_retested`
+verifica a sequência pendente → quarentena → aprovado.
+`test_receipt_rejects_invalid_state_transitions` verifica que estados terminais
+recusam transições inválidas. O teste de integração
+`tests/integration/test_orm.py::test_receipt_state_transitions_survive_orm_reload`
+verifica o comportamento após persistência e recarga.
+
+A [CI do commit `bdbad53`](https://github.com/Lucas172UFF/LactoQC/actions/runs/43351331311)
+passou.
+
+### Custo da aplicação do padrão
+
+A aplicação acrescenta quatro classes de estado, um registro para associá-las
+ao enum e o mapeamento ORM do atributo `_status`. Isso aumenta o número de
+elementos do modelo, mas torna explícitas as transições do ciclo de vida e
+mantém a compatibilidade com a coluna existente.
 
 ---
 
