@@ -4,9 +4,6 @@ from __future__ import annotations
 from datetime import datetime, date
 from typing import Any
 
-from sqlalchemy.orm import Session
-
-from LactoQC.adapters.repository import AbstractCollectionPointRepository , AbstractProductionBatchRepository
 from LactoQC.domain.model import (
     EXPECTED_UNITS,
     CollectionPoint,
@@ -23,6 +20,11 @@ from LactoQC.domain.model import (
     NonConformityObserver,
     RawMaterialReceipt,
     TestResult,
+)
+from LactoQC.service_layer.ports import (
+    AbstractCollectionPointRepository,
+    AbstractProductionBatchRepository,
+    TransactionCommitter,
 )
 
 def parse_measurement_type(raw: Any) -> MeasurementType:
@@ -48,7 +50,7 @@ def _to_float(raw: Any, field: str) -> float:
 
 
 def create_collection_point(
-    repo: AbstractCollectionPointRepository, session: Session,
+    repo: AbstractCollectionPointRepository, session: TransactionCommitter,
     name: str, location: str, specifications: list[dict],
 ) -> CollectionPoint:
     """Cria o ponto com as 3 especificações obrigatórias (o domínio valida)."""
@@ -77,7 +79,7 @@ def get_collection_point(repo: AbstractCollectionPointRepository, collection_poi
 
 
 def register_measurement(
-    repo: AbstractCollectionPointRepository, session: Session, collection_point_id: int,
+    repo: AbstractCollectionPointRepository, session: TransactionCommitter, collection_point_id: int,
     measurement_type: Any, value: Any, measurement_date: datetime | None = None,
     observers: list[NonConformityObserver] | None = None,
 ) -> tuple[Measurement, list[NonConformity]]:
@@ -120,7 +122,12 @@ def list_non_conformities(
             and (end is None or nc.measurement.measurement_date <= end)
         ]
 
-def close_daily_record(repo: AbstractCollectionPointRepository, session:Session, collection_point_id: int, day: date):
+def close_daily_record(
+    repo: AbstractCollectionPointRepository,
+    session: TransactionCommitter,
+    collection_point_id: int,
+    day: date,
+):
     collection_point = get_collection_point(repo, collection_point_id)
     collection_point.close_day(day)
     session.commit()
@@ -187,7 +194,7 @@ def list_production_batches(
 
 def create_production_batch(
     repo: AbstractProductionBatchRepository,
-    session: Session,
+    session: TransactionCommitter,
     batch_number: str,
     production_date: datetime,
     milk_type: Any,
@@ -231,7 +238,7 @@ def create_production_batch(
 
 def register_weight_sample(
     repo: AbstractProductionBatchRepository,
-    session: Session,
+    session: TransactionCommitter,
     batch_number: str,
     weight_kg: Any,
     date_time: datetime | None = None,
@@ -265,7 +272,7 @@ def register_weight_sample(
 
 def register_lecithinization(
     repo: AbstractProductionBatchRepository,
-    session: Session,
+    session: TransactionCommitter,
     batch_number: str,
     performed: bool,
     date_time: datetime | None = None,
@@ -292,7 +299,7 @@ def register_lecithinization(
 
 def register_wettability_result(
     repo: AbstractProductionBatchRepository,
-    session: Session,
+    session: TransactionCommitter,
     batch_number: str,
     result: Any,
 ) -> tuple[TestResult, list[BatchNonConformity]]:
@@ -314,7 +321,7 @@ def register_wettability_result(
 
 def release_production_batch(
     repo: AbstractProductionBatchRepository,
-    session: Session,
+    session: TransactionCommitter,
     batch_number: str,
 ) -> tuple[ProductionBatch, list[BatchNonConformity]]:
 

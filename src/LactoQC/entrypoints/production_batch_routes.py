@@ -4,9 +4,6 @@ from datetime import datetime
 
 from flask import Blueprint, abort, jsonify, request
 
-from LactoQC.adapters.repository import (
-    AbstractProductionBatchRepository,
-)
 from LactoQC.domain.model import (
     BatchStatus,
     RawMaterialReceipt,
@@ -14,6 +11,7 @@ from LactoQC.domain.model import (
 )
 from LactoQC.entrypoints.flask_app import get_repositories, get_session
 from LactoQC.service_layer import services
+from LactoQC.service_layer.ports import AbstractProductionBatchRepository
 
 
 bp = Blueprint("production_batches", __name__)

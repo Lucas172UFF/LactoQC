@@ -1,11 +1,11 @@
 import pytest
-from LactoQC.adapters.repository import AbstractCollectionPointRepository
 from LactoQC.domain.model import (
     CollectionPoint,
     MeasurementType,
     MeasurementUnit,
     Specification, 
 )
+from LactoQC.service_layer.ports import AbstractCollectionPointRepository
 
 
 def make_specification() -> list[Specification]:

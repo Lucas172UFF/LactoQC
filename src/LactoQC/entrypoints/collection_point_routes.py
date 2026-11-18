@@ -4,8 +4,8 @@ from datetime import datetime, date
 
 from flask import Blueprint, abort, jsonify, request
 
-from LactoQC.adapters.repository import AbstractCollectionPointRepository
 from LactoQC.entrypoints.flask_app import get_repositories, get_session
+from LactoQC.service_layer.ports import AbstractCollectionPointRepository
 from LactoQC.service_layer import services
 from LactoQC.service_layer.notifications import LoggingNonConformityObserver
 
