@@ -70,3 +70,33 @@ Django ofereceria um conjunto mais integrado de recursos, incluindo roteamento, 
 Uma implementação convencional do Django define modelos persistentes como subclasses de `django.db.models.Model`. Isso poderia aproximar as entidades de domínio da infraestrutura de persistência. Seria possível preservar classes de domínio independentes e criar modelos Django separados para a persistência, mas essa separação exigiria adaptadores e conversões explícitas.
 
 Django reduziria parte da configuração manual e forneceria funcionalidades prontas, especialmente úteis para aplicações com autenticação, administração e interface HTML. Para o escopo atual — uma API JSON pequena, sem autenticação ou interface administrativa — esses recursos acrescentariam componentes que o sistema não usa. A decisão dependeria do peso dado à produtividade integrada do Django em comparação com a separação explícita entre domínio, entrada HTTP e persistência adotada no LactoQC.
+
+## Evidência do agregado Ponto de Coleta (João Gabriel Pimentel)
+
+Os três pontos abaixo são exemplos concretos, tirados do agregado que acompanho
+(`CollectionPoint`), dos mecanismos descritos nas seções anteriores.
+
+**Despacho de rota pelo Flask.** `register_measurement`
+(`src/LactoQC/entrypoints/collection_point_routes.py:122-136`) nunca é chamada
+pelo código da própria rota; ela só é registrada no blueprint com
+`@bp.post("/collection-points/<int:collection_point_id>/measurements")`, e é o
+despachante do Flask quem a invoca ao receber a requisição correspondente. O
+mesmo vale para `close_session` (`flask_app.py:43-47`): o callback é
+registrado com `@app.teardown_appcontext`, e é o Flask quem decide o instante
+de chamá-lo, ao final de cada contexto de aplicação — nunca o código da rota.
+
+**Fixtures do pytest nos meus testes.** `tests/unit/test_collection_point.py`
+e `tests/unit/test_collection_point_services.py` declaram `fake_repo`,
+`fake_session`, `client` e `session` como parâmetros, sem chamá-los; é o
+pytest quem resolve a cadeia de dependências em `tests/conftest.py` (por
+exemplo, `client` depende de `session_factory`, que depende de
+`in_memory_db`) e injeta cada valor antes do teste rodar, retomando o
+generator depois do `yield` para o teardown.
+
+**Unit of Work na sessão que uso.** Todo caso de uso do meu agregado em
+`src/LactoQC/service_layer/services.py` (`register_measurement`,
+`close_daily_record`, `create_collection_point`) termina com
+`session.commit()`, sem nenhuma lógica própria de acumular ou ordenar
+mudanças — isso é o que a `Session` do SQLAlchemy já faz por dentro, desde o
+`repo.add(...)` ou a chamada a `collection_point.add_measurement(...)` até o
+commit.
