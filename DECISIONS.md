@@ -339,6 +339,12 @@ extraídas do próprio repositório por mim/pela IA e conferidas por mim antes
 do commit; as decisões de arquitetura e os trade-offs identificados são
 avaliações minhas sobre o sistema real.
 
+### Lucas Ardelino Alves da Silva
+
+**O que fiz:** participei, em colaboração com João, da discussão da decisão sobre validar as invariantes dos agregados durante sua construção. Essa decisão está registrada no ADR-0006, `docs/adr/0006-invariantes-validadas-no-construtor.md`, que me identifica como autor. O documento foi incluído na `main` pelo commit `56a54f0`, de autoria Git de João Gabriel Pimentel.
+
+**Decisão de projeto:** manter as validações no construtor, para evitar que um agregado exista em estado inválido e deixar as regras junto aos dados que elas protegem. O ADR também registra alternativas e custos considerados.
+
 ## Checkpoint 2 — Refatoração SOLID (03/11)
 
 ### João Gabriel Pimentel
