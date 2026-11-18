@@ -345,6 +345,27 @@ avaliações minhas sobre o sistema real.
 
 **Decisão de projeto:** manter as validações no construtor, para evitar que um agregado exista em estado inválido e deixar as regras junto aos dados que elas protegem. O ADR também registra alternativas e custos considerados.
 
+### André Meschesi Dantas
+
+**O que fiz:** sou o autor das decisões registradas no ADR-0003
+(`docs/adr/0003-commit-no-service-layer.md`, o commit da transação pertence ao
+service layer) e no ADR-0004 (`docs/adr/0004-excecoes-de-dominio-como-codigos-http.md`,
+exceções de domínio traduzidas em códigos HTTP no entrypoint). As duas
+decisões descrevem o service layer e a API que implementei na Fase 1 (meus
+commits de 29/09, por exemplo `a943a6b`, `3c9b07c` e `016f151`). Os ADRs foram
+incluídos na `main` pelo commit `56a54f0`, de autoria Git de João Gabriel
+Pimentel; não tenho commit próprio dentro do prazo deste checkpoint. Na Fase 2
+fiz a revisão do ADR-0003 no meu commit `fc010c9`.
+
+**Decisão de projeto:** deixar o `commit()` no caso de uso, e não no
+repositório, para que uma operação que altera mais de um objeto seja gravada
+inteira ou não seja gravada.
+
+**Uso de IA:** neste checkpoint, a redação dos ADRs foi feita com apoio de IA
+pelo João, como ele registra na subseção dele. Esta subseção foi redigida em
+17/11 com apoio do Claude (claude.ai), a partir do histórico do repositório, e
+conferida por mim.
+
 ## Checkpoint 2 — Refatoração SOLID (03/11)
 
 ### João Gabriel Pimentel
@@ -471,3 +492,13 @@ Durante a Fase 2 aprendi que um padrão ajuda quando responde a uma necessidade 
 Também percebi que uma decisão de domínio precisa continuar funcionando na arquitetura que já existe. Como o SQLAlchemy reconstrói objetos sem chamar seu construtor, foi preciso manter o enum como dado persistido e mapear o atributo interno usado pelo modelo. Os testes unitários cobrem as transições; o teste de integração cobre a persistência, e a CI passou para o commit da implementação.
 
 Eu faria diferente o planejamento: começaria a análise SOLID e a escolha do padrão antes dos prazos dos checkpoints, registraria as decisões e hashes enquanto trabalhasse e reservaria tempo para revisar a suíte e a documentação em conjunto. O apoio de IA foi útil para explorar alternativas e estruturar código e texto, mas também reforçou que eu preciso conferir cada afirmação com o repositório e declarar esse apoio com clareza.
+
+## Reflexão final — André Meschesi Dantas
+
+A Fase 2 foi muito produtiva para mim. Trabalho com este grupo desde os primeiros períodos da faculdade e sinto que, ao longo desse tempo, desenvolvemos uma boa forma de cooperar e de nos organizar juntos. Neste projeto, o Lucas e o João tomaram a frente, e eu e o Aloysio chegamos complementando o trabalho deles. Acho que somamos bem: é um grupo que trabalha bem junto.
+
+Gostei da proposta dos professores de pedir que declarássemos o uso de IA. Achei importante termos essa honestidade intelectual sobre como o trabalho foi feito. E usamos bastante IA: eu usei o Claude como apoio no trabalho em geral, o Claude Code para programar e também para fazer os commits e os pushes por mim. Achei isso muito produtivo, porque acelera bastante o desenvolvimento: conseguimos enviar as mudanças mais rápido, o processo fica mais dinâmico e o feedback chega de forma mais imediata.
+
+Sobre o que eu faria diferente: considero que o que foi feito foi bem feito, dentro do possível, já que a disciplina teve um rumo pouco usual por causa da troca de professores. Também conversamos pessoalmente na faculdade, o que foi bem produtivo. Talvez eu tivesse feito a minha parte um pouco antes, para ter mais margem, mas, fazendo uma autoavaliação, acho que o que entreguei ficou bom. De forma geral, gostei de como o projeto andou e gostei da disciplina.
+
+**Uso de IA:** usei o Claude para organizar os pontos desta reflexão; o texto final foi escrito e revisado por mim.
