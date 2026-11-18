@@ -13,7 +13,7 @@ violação é exposta por uma mudança de requisito plausível descrita na seç�
 |---|---|---|---|
 | João Gabriel Pimentel | `CollectionPoint` (domínio) | OCP | ✅ Concluído |
 | Aloysio Felipe Saad Silva | _(preencher)_ | _(preencher)_ | ⬜ Pendente |
-| Lucas Ardelino Alves da Silva | `RawMaterialReceipt` (domínio) | OCP | ✅ Concluído |
+| Lucas Ardelino Alves da Silva | `RawMaterialReceipt` (domínio) e service layer | OCP e DIP | ✅ Concluído |
 | André Meschesi Dantas | Infraestrutura e API (`flask_app.py`) | SRP | ✅ Concluído |
 
 ---
@@ -257,6 +257,95 @@ A mudança acrescenta quatro classes de estado e um registro que associa status
 a estados. Também exige mapear `_status` para a coluna `status` do banco. Esse
 custo mantém as regras de transição junto dos estados correspondentes e evita
 que o recebimento aceite alterações arbitrárias de status.
+
+### Refatoração adicional — Dependency Inversion Principle (DIP) no service layer
+
+**Commit "antes":** `02c5118` — versão da `main` imediatamente anterior a esta
+refatoração.
+
+Em `src/LactoQC/service_layer/services.py`, os casos de uso importavam
+`sqlalchemy.orm.Session` e os contratos de repositório de
+`LactoQC.adapters.repository`. Um exemplo era `create_collection_point`, que
+recebia `Session` e chamava `session.commit()`. O mesmo acoplamento aparecia nos
+casos de uso de medição, fechamento diário e operações de lote de produção.
+
+Trecho de `services.py` no commit `02c5118`:
+
+```python
+from sqlalchemy.orm import Session
+from LactoQC.adapters.repository import AbstractCollectionPointRepository
+
+def create_collection_point(
+    repo: AbstractCollectionPointRepository,
+    session: Session,
+    ...,
+):
+    ...
+    session.commit()
+```
+
+### O problema concreto
+
+O service layer coordena os casos de uso, mas sua assinatura dependia de um tipo
+do SQLAlchemy e de abstrações localizadas no pacote de adaptadores. Isso fazia a
+camada de aplicação conhecer detalhes de persistência e dificultava substituir
+ou adaptar a fronteira transacional sem alterar os casos de uso. Os testes já
+usavam um `FakeSession` que só precisava oferecer `commit()`, evidenciando que a
+dependência necessária era menor que a classe concreta `Session`.
+
+### A refatoração
+
+Os contratos de `CollectionPoint` e `ProductionBatch` foram movidos para
+`service_layer/ports.py`, junto com o protocolo `TransactionCommitter`, que
+expõe apenas a operação `commit()`. O service layer agora depende desses
+contratos próprios. Os repositórios SQLAlchemy continuam nos adaptadores e
+implementam os contratos definidos pela aplicação; a sessão concreta continua
+sendo fornecida na composição da aplicação.
+
+Trecho depois da refatoração:
+
+```python
+from LactoQC.service_layer.ports import (
+    AbstractCollectionPointRepository,
+    TransactionCommitter,
+)
+
+def create_collection_point(
+    repo: AbstractCollectionPointRepository,
+    session: TransactionCommitter,
+    ...,
+):
+    ...
+    session.commit()
+```
+
+### Como os testes cobrem a mudança
+
+Foi acrescentado `tests/unit/test_service_layer_dependencies.py`. Ele verifica
+que os módulos do service layer não importam SQLAlchemy nem adaptadores e que o
+`FakeSession` satisfaz o protocolo mínimo de transação. Os testes existentes dos
+casos de uso continuam verificando que operações válidas chamam `commit()` e
+que erros de domínio não confirmam a transação. A suíte completa passou com
+Python 3.14.10 e as dependências de `requirements.txt`: **203 testes aprovados**.
+O pytest apresentou quatro avisos de coleta da enum `TestResult`, sem falhas.
+
+### Alternativa considerada
+
+Uma alternativa seria manter a `Session` concreta nos serviços e limitar a
+refatoração a documentar esse acoplamento. Ela exigiria menos mudanças, mas não
+resolveria a dependência da camada de aplicação com SQLAlchemy. Também seria
+possível criar uma unidade de trabalho completa; essa opção foi deixada de lado
+porque os casos de uso atualmente precisam somente da operação `commit()`.
+
+### Custo e justificativa
+
+O custo é um novo módulo de portas, a movimentação dos contratos de repositório
+e uma interface mínima para confirmação transacional. Não há mudança no fluxo
+dos casos de uso nem no comportamento das rotas. A separação compensa porque a
+camada de aplicação deixa de importar SQLAlchemy e implementações localizadas
+nos adaptadores, mantendo a escolha da tecnologia na infraestrutura.
+
+**Commit "depois":** [`e084167`](../../commit/e08416703a848a0414f87573207846ddaf662c01) — `refactor: inverte dependencias do service layer`.
 
 ---
 
