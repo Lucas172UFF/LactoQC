@@ -53,3 +53,43 @@ Esse auxílio não substitui a compreensão do sistema nem a revisão das pessoa
 Com base no que observamos, recomendamos manter a arquitetura em camadas com Ports & Adapters e evoluí-la de forma seletiva. Ela preservou o isolamento do domínio e ofereceu pontos claros para testes e mudanças. Não identificamos, no trabalho realizado, uma necessidade que justificasse substituir toda essa estrutura por outra arquitetura ou por um framework full-stack.
 
 Como próximos pontos de atenção, consideraríamos reduzir o conhecimento do tipo `Session` na camada de serviço caso a aplicação precise de uma fronteira transacional mais independente, preservar testes de integração para os mapeamentos do ORM e avaliar o custo de carregar agregados completos nas consultas. A decisão é continuar usando os princípios e padrões como ferramentas para resolver problemas concretos, revisando seus benefícios e custos à medida que o sistema evolui.
+
+## Reflexão — João Gabriel Pimentel
+
+Revisito aqui as previsões que fiz no Checkpoint 1 (`docs/arquitetura.md`) para o
+agregado que acompanho, `CollectionPoint`, e o que a Fase 2 confirmou ou não.
+
+**O que se confirmou.** CQ-01 (domínio testável sem banco) previu suíte unitária
+em menos de 1s; mediram-se 0,14s para 113 testes no Checkpoint 1, e a suíte
+continuou sem precisar de banco depois dos dois padrões que apliquei na Fase 2:
+a correção de OCP (`6ad1830`) e o Observer (`232d03a`) levaram `tests/unit` de
+173 para 174 e depois para 180 testes, sem nenhuma fixture de banco nova. CQ-04
+(custo de um caso de uso em até 4 arquivos por camada) também se confirmou em
+escala menor: o OCP tocou só `domain/model.py`; o Observer tocou três arquivos
+(`domain/model.py`, `service_layer/notifications.py`,
+`entrypoints/collection_point_routes.py`), nunca `adapters/` — nenhum dos dois
+padrões mudava como o dado é persistido.
+
+**O que não se confirmou como esperado.** O risco R-01 que registrei em
+`docs/arquitetura.md` §4.4 (mapeamento global de classes; um erro em um
+agregado derruba os outros) deixou de ser hipotético: chegou a derrubar 18
+testes do Lote de Produção por um mapeamento duplicado em `orm.py`, pela mesma
+razão que eu já havia previsto — só que mais cedo e mais concretamente do que
+o documento antecipava.
+
+**O que a Fase 2 mostrou sobre as camadas.** Nos dois padrões que apliquei, a
+arquitetura em camadas não precisou ser contornada nem estendida para caber a
+mudança — ela já tinha o lugar certo para cada peça: a política de tipos
+obrigatórios (OCP) é regra de negócio, então ficou inteira em `domain/`; a
+notificação (Observer) é efeito colateral de infraestrutura, então o
+`ConcreteObserver` de log ficou no service layer e a composição de quais
+observadores usar ficou na rota, que já era a camada que compunha dependências
+de infraestrutura (o repositório). É evidência a favor de manter o estilo: um
+padrão de projeto novo não exigiu reorganizar camada nenhuma no meu agregado.
+
+**Decisão.** Pela minha parte, mantenho a recomendação deste documento:
+continuar em camadas com Ports & Adapters, com os três ajustes que registrei em
+`docs/arquitetura.md` §5.2 — Unit of Work explícito no lugar de `Session` solta
+no service layer, uma porta de consulta separada do repositório de escrita, e
+um único `start_mappers()` idempotente (que o risco R-01 confirmado deixou
+ainda mais urgente).
