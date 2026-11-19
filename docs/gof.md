@@ -12,7 +12,7 @@ si dentro do grupo.
 | Integrante | Agregado/módulo | Padrão | Categoria | Status |
 |---|---|---|---|---|
 | João Gabriel Pimentel | `CollectionPoint` (domínio) | Observer | Comportamental | ✅ Concluído |
-| Aloysio Felipe Saad Silva | _(preencher)_ | _(ex.: Strategy)_ | _(preencher)_ | ⬜ Pendente |
+| Aloysio Felipe Saad Silva | `ProductionBatch` (domínio) | Strategy | Comportamental | ✅ Concluído |
 | Lucas Ardelino Alves da Silva | `RawMaterialReceipt` (domínio) | State | Comportamental | ✅ Concluído |
 | André Meschesi Dantas | Infraestrutura e API (`repository.py` + rotas) | Abstract Factory | Criacional | ✅ Concluído |
 
@@ -180,6 +180,7 @@ ou nos testes existentes. É exatamente o requisito que `docs/arquitetura.md`
 
 ### Padrão GoF aplicado: Strategy (comportamental)
 
+**Commit de implementação das classes do padrão:** [`6140ef5`](../../commit/6140ef5) (mesmo commit da refatoração SOLID — as classes Strategy nasceram ali). **Commit dos testes dedicados ao padrão e desta documentação:** [`40e24a8`](../../commit/40e24a8).
 
 ### Por que Strategy
 
@@ -192,6 +193,15 @@ existe exatamente para esse cenário: definir uma família de algoritmos,
 encapsular cada um numa classe própria atrás de uma interface comum, e
 tornar esses algoritmos intercambiáveis sem que a classe que os usa
 (`ProductionBatch`) precise saber como cada um decide.
+
+Alternativas consideradas:
+
+| Alternativa | Por que foi descartada |
+|---|---|
+| **Manter condicionais dentro de `ProductionBatch`** (o código "antes") | É exatamente a violação de OCP que motivou a refatoração: qualquer regra nova ou variação de regra existente exigiria editar a Aggregate Root diretamente. |
+| **Chain of Responsibility** (cada regra decide se repassa a checagem adiante) | As quatro regras do lote não têm ordem de precedência nem "param a cadeia" quando uma falha — todas são sempre avaliadas, de forma independente, e cada violação vira sua própria não conformidade. Chain of Responsibility introduziria uma noção de sequência e curto-circuito que não existe no domínio. |
+| **Specification pattern** (regras combináveis com `and`/`or`) | É mais flexível — permitiria compor regras —, mas resolve um problema que o Lote de Produção não tem: nenhuma regra precisa ser combinada logicamente com outra. Seria complexidade adicional sem necessidade de negócio correspondente. |
+| **Visitor** (uma classe visita o lote e aplica regras externas) | Exigiria um método `accept()` por regra no próprio agregado e inverteria a dependência de forma mais pesada do que o necessário. Injetar a estratégia diretamente no construtor, como o Strategy permite, é mais simples para o caso de uso real: trocar uma regra só para um lote específico, sem mexer na classe. |
 
 ### Participantes do padrão, mapeados para o código
 
@@ -305,8 +315,29 @@ em `tests/unit/test_production_batch.py`):
   evidencia que o algoritmo é propriedade da instância (via a estratégia
   injetada), não da classe.
 
-Suíte completa de `tests/unit/`: **49 testes passando** (44 de regra de
-negócio do agregado + 5 dedicados ao padrão Strategy).
+`tests/unit/test_production_batch.py` + `tests/unit/test_production_batch_strategy_pattern.py`:
+**48 testes passando** (43 de regra de negócio do agregado + 5 dedicados ao
+padrão Strategy). Na suíte completa do projeto, isso eleva a contagem de
+**180 passed** (antes deste commit) para **185 passed** (depois), confirmado
+rodando `pytest tests/ -q` localmente em cada um dos dois commits.
+
+### Custo da aplicação do padrão
+
+**Custo:** o mesmo custo estrutural já pago na refatoração SOLID (oito
+classes pequenas: quatro interfaces e quatro implementações padrão) — nada
+adicional foi pago só para "ser GoF". O que esta etapa acrescentou foi um
+arquivo de teste a mais (`test_production_batch_strategy_pattern.py`, 5
+testes), dedicado a provar a substituibilidade em si, separado dos testes de
+regra de negócio.
+
+**Por que compensa:** sem esses cinco testes, a refatoração SOLID do
+checkpoint anterior provava "a regra de negócio continua correta", mas não
+provava explicitamente "uma regra pode ser trocada sem tocar no agregado" —
+que é a propriedade que justifica chamar isso de Strategy, e não só de
+"quatro métodos movidos para fora da classe". O custo de cinco testes a mais
+compra uma evidência direta e barata de reexecutar sempre que o agregado
+mudar, em vez de depender de inspeção manual do código para confirmar que o
+padrão continua funcionando como tal.
 
 ---
 

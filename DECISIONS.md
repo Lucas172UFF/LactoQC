@@ -366,6 +366,35 @@ pelo João, como ele registra na subseção dele. Esta subseção foi redigida e
 17/11 com apoio do Claude (claude.ai), a partir do histórico do repositório, e
 conferida por mim.
 
+### Aloysio Felipe Saad Silva
+
+**O que fiz:** sou o autor da decisão registrada no ADR-0005
+(`docs/adr/0005-nao-conformidade-registrada-nao-lancada.md`): por que uma
+violação de pré-condição do agregado (ex.: matéria-prima reprovada) lança
+exceção, enquanto um resultado de controle de qualidade (ex.: peso fora da
+tolerância, molhabilidade reprovada) é registrado como não conformidade no
+próprio `ProductionBatch`, sem interromper `release()`. O documento foi
+incluído na `main` pelo commit `56a54f0`, de autoria Git de João Gabriel
+Pimentel; não tenho commit próprio dentro do prazo deste checkpoint.
+
+**Decisão de projeto:** separar explicitamente os dois tipos de "coisa
+errada" do sistema — pré-condição inválida (exceção, impede a operação) e
+resultado de qualidade (registro, vira parte do histórico do lote) — porque
+tratar os dois como exceção faria o sistema perder justamente a informação
+que justifica sua existência: o histórico de não conformidades consultável
+por período e origem (`PROPOSTA.md` §6). O ADR também registra as
+alternativas descartadas (lançar exceção também para a não conformidade;
+interromper `release()` na primeira violação encontrada; eventos de
+domínio) e os trade-offs aceitos (o chamador precisa inspecionar a lista de
+não conformidades por conta própria; `id_` sequencial fraco; `release()`
+nunca falha, então quem não checar o `status` pode tratar um lote
+`NON_CONFORMING` como liberado).
+
+**Uso de IA:** esta subseção foi redigida em 17/11 com apoio do Claude
+(claude.ai), a partir do histórico real do repositório (`git log`, conteúdo
+do ADR-0005 e dos commits citados nele), e conferida por mim antes do
+commit.
+
 ## Checkpoint 2 — Refatoração SOLID (03/11)
 
 ### João Gabriel Pimentel
@@ -387,7 +416,31 @@ continuava passando (174 testes) foram conferidos por mim antes do commit.
 
 ### Aloysio Felipe Saad Silva
 
-_(preencher)_
+**O que fiz:** corrigi uma violação de OCP no agregado `ProductionBatch`
+(`src/LactoQC/domain/model.py`), documentada em `docs/solid.md`. Commit
+"antes" (marcador vazio): `2499f78`. Commit de código: `6140ef5`.
+
+**Decisão de projeto:** extraí as quatro regras de qualidade do lote
+(tolerância de peso, lecitinização obrigatória para leite de cabra,
+conflito de tipo de leite no mesmo dia, aprovação da molhabilidade) para
+classes próprias atrás de interfaces abstratas (`SampleWeightRule`,
+`LecithinizationRule`, `MilkTypeConflictRule`, `WettabilityRule`), injetadas
+no construtor de `ProductionBatch` com uma implementação padrão quando
+nenhuma é passada — assim uma regra nova ou uma variação de regra existente
+não exige editar a Aggregate Root.
+
+**Uso de IA:** usei o Claude (claude.ai) para identificar a violação de OCP
+no `ProductionBatch` (cada regra de qualidade como condicional fixa dentro
+dos métodos do agregado), propor a extração em classes Strategy e redigir
+`docs/solid.md`. Antes de prosseguir, rodei a suíte completa localmente em
+cada um dos dois commits para confirmar que o comportamento não mudava:
+`174 passed` no commit "antes" (`2499f78`) e `174 passed` no commit "depois"
+(`6140ef5`) — os mesmos testes, sem alteração. Também precisei corrigir, com
+apoio da IA, uma incompatibilidade que só apareceu nos testes e2e: o
+SQLAlchemy reconstrói um `ProductionBatch` carregado do banco sem chamar o
+`__init__`, então as quatro regras passaram a ser expostas por `@property`
+com valor padrão de classe, em vez de depender só do que é atribuído no
+construtor. Revisei o código e o texto e sou responsável pelo resultado.
 
 ### Lucas Ardelino Alves da Silva
 
@@ -448,7 +501,36 @@ commit.
 
 ### Aloysio Felipe Saad Silva
 
-_(preencher)_
+**O que fiz:** apliquei o padrão Strategy ao agregado `ProductionBatch`
+(`src/LactoQC/domain/model.py`,
+`tests/unit/test_production_batch_strategy_pattern.py`), documentado em
+`docs/gof.md`. As classes do padrão nasceram no mesmo commit da refatoração
+SOLID do checkpoint anterior (`6140ef5`); os testes dedicados ao padrão e a
+documentação são do commit `40e24a8`.
+
+**Decisão de projeto:** reaproveitei as quatro classes de regra extraídas no
+Checkpoint 2 (`SampleWeightRule`, `LecithinizationRule`,
+`MilkTypeConflictRule`, `WettabilityRule`, com suas implementações padrão)
+como o padrão GoF Strategy do Checkpoint 3, em vez de introduzir um padrão
+novo e não relacionado: o problema (família de algoritmos intercambiáveis,
+Context que não sabe como cada um decide) já tinha sido resolvido ali.
+Escrevi testes separados dos de regra de negócio, focados em provar
+especificamente a substituibilidade — por exemplo, injetar uma
+`StrictWeightToleranceRule` com tolerância de 1% e mostrar que a mesma
+amostra passa ou reprova dependendo só da estratégia injetada, sem tocar em
+`ProductionBatch`. Também considerei e descartei Chain of Responsibility,
+Specification e Visitor (comparação registrada em `docs/gof.md`), porque
+nenhum se encaixa melhor no formato real das quatro regras do lote.
+
+**Uso de IA:** usei o Claude (claude.ai) para nomear formalmente o padrão já
+presente na refatoração anterior como Strategy, mapear os participantes
+(Context/Strategy/ConcreteStrategy) para as classes reais, gerar o diagrama
+Mermaid, comparar com as alternativas descartadas e redigir `docs/gof.md`.
+Rodei a suíte completa localmente em cada um dos dois commits envolvidos
+para conferir os números antes de registrá-los: `180 passed` antes do
+commit `40e24a8` e `185 passed` depois (os cinco testes novos do arquivo
+dedicado ao padrão). Revisei o código e o texto e sou responsável pelo
+resultado.
 
 ### Lucas Ardelino Alves da Silva
 
@@ -484,6 +566,14 @@ Ao rodar a API sobre a família em memória apareceu o erro de
 `collection_point_id` na serialização, corrigido no mesmo commit. Revisei o
 código e o texto, rodei a suíte completa antes do commit (`201 passed`) e
 sou responsável pelo resultado.
+
+## Reflexão final — Aloysio Felipe Saad Silva
+
+Na Fase 2, a refatoração do ProductionBatch me mostrou como uma violação de OCP pode ficar escondida atrás de código que “só funciona”: as quatro regras de qualidade estavam certas, mas cada uma era um motivo a mais para editar o agregado inteiro. Extrair o Strategy deixou isso explícito, e rodar a suíte completa antes e depois do commit (174 passed nos dois) foi o que me deu confiança de que a mudança não alterou nenhum comportamento — só a organização do código.
+
+A parte mais instrutiva foi um bug que só apareceu nos testes e2e: o SQLAlchemy reconstrói um objeto carregado do banco sem passar pelo __init__, então as regras injetadas simplesmente não existiam em lotes vindos do banco. Isso reforçou que uma decisão de domínio só está pronta quando testada contra a infraestrutura real do projeto, não só em memória.
+
+Usei bastante IA ao longo do processo — para identificar a violação, desenhar o Strategy, escrever testes e depurar problemas de ambiente (git, PATH do Python, conflitos de merge). Isso acelerou muito, mas também exigiu mais cuidado da minha parte: percebi, revisando o docs/solid.md depois, que uma afirmação sobre testes tinha ficado incorreta por falta de conferência. Da próxima vez, eu validaria cada número citado na documentação rodando a suíde de verdade no commit exato, antes de registrar qualquer contagem.
 
 ## Reflexão final — Lucas Ardelino Alves da Silva
 
