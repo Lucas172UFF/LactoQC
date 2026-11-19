@@ -12,7 +12,7 @@ violação é exposta por uma mudança de requisito plausível descrita na seç�
 | Integrante | Agregado/módulo | Princípio | Status |
 |---|---|---|---|
 | João Gabriel Pimentel | `CollectionPoint` (domínio) | OCP | ✅ Concluído |
-| Aloysio Felipe Saad Silva | _(preencher)_ | _(preencher)_ | ⬜ Pendente |
+| Aloysio Felipe Saad Silva | `ProductionBatch` (domínio) | OCP | ✅ Concluído |
 | Lucas Ardelino Alves da Silva | `RawMaterialReceipt` (domínio) e service layer | OCP e DIP | ✅ Concluído |
 | André Meschesi Dantas | Infraestrutura e API (`flask_app.py`) | SRP | ✅ Concluído |
 
@@ -141,14 +141,15 @@ probabilidade concreta de acontecer na Fase 2.
 
 ---
 
-### Aloysio Felipe Saad Silva — ProductionBatch (agregado Lote de Produção)
+## Aloysio Felipe Saad Silva — `ProductionBatch` (agregado Lote de Produção)
+
 ### Princípio violado: Open/Closed Principle (OCP)
 
-Commit "antes": <HASH-ANTES> — código do ProductionBatch em src/LactoQC/domain/model.py antes da refatoração desta seção.
+**Commit "antes":** [`2499f78`](../../commit/2499f78) (commit vazio, marca deliberadamente o estado do código imediatamente anterior à refatoração desta seção).
 
-Trecho de src/LactoQC/domain/model.py no commit <HASH-ANTES>:
+Trecho de `src/LactoQC/domain/model.py` no commit `2499f78`:
 
-python
+```python
 def check_mandatory_lecithinization(self):
     if self.milk_type == MilkType.GOAT and (self.lecithinization is None or not self.lecithinization.performed):
         self._register_non_conformity("Goat milk requires lecithinization, but it was not performed.")
@@ -164,19 +165,38 @@ def release(self, other_batches_of_the_day=None):
     if self.wettability_result != TestResult.APPROVED:
         self._register_non_conformity("Wettability test not approved.")
     self.status = BatchStatus.NON_CONFORMING if self.non_conformities else BatchStatus.RELEASED
-O problema concreto
+```
 
-Cada regra de qualidade do lote — tolerância de peso, lecitinização obrigatória para leite de cabra, conflito de tipo de leite no mesmo dia, aprovação da molhabilidade — estava implementada como lógica fixa dentro dos próprios métodos de ProductionBatch. A classe que representa o agregado era também a única classe capaz de decidir se cada regra passava ou não.
+### O problema concreto
 
-Isso é uma violação de OCP exposta por uma mudança de requisito plausível, prevista na própria PROPOSTA.md: o checklist de regras do Lote de Produção tende a crescer (ex.: um produto específico exigir uma checagem adicional de validade da matéria-prima, ou um cliente exigir uma tolerância de peso diferente de 5% para determinada linha de produto). Com o código "antes", qualquer uma dessas mudanças exigiria editar ProductionBatch diretamente — a mesma classe coberta por toda a suíte de testes do agregado — misturando, no mesmo arquivo e pelo mesmo motivo estrutural, decisões de negócio que não têm relação entre si (peso não tem nada a ver com lecitinização, que não tem nada a ver com conflito de tipo de leite). A classe não estava fechada para modificação diante de uma extensão esperada do conjunto de regras.
+Cada regra de qualidade do lote — tolerância de peso, lecitinização obrigatória
+para leite de cabra, conflito de tipo de leite no mesmo dia, aprovação da
+molhabilidade — estava implementada como lógica fixa dentro dos próprios
+métodos de `ProductionBatch`. A classe que representa o agregado era também a
+única classe capaz de decidir se cada regra passava ou não.
 
-A refatoração
+Isso é uma violação de OCP exposta por uma mudança de requisito plausível,
+prevista na própria `PROPOSTA.md`: o checklist de regras do Lote de Produção
+tende a crescer (ex.: um produto específico exigir uma checagem adicional de
+validade da matéria-prima, ou um cliente exigir uma tolerância de peso
+diferente de 5% para determinada linha de produto). Com o código "antes",
+qualquer uma dessas mudanças exigiria editar `ProductionBatch` diretamente —
+a mesma classe coberta por toda a suíte de testes do agregado — misturando,
+no mesmo arquivo e pelo mesmo motivo estrutural, decisões de negócio que não
+têm relação entre si (peso não tem nada a ver com lecitinização, que não tem
+nada a ver com conflito de tipo de leite). A classe não estava fechada para
+modificação diante de uma extensão esperada do conjunto de regras.
 
-Commit "depois": <HASH-DEPOIS> — refactor: extrai regras de qualidade do ProductionBatch em classes Strategy (OCP).
+### A refatoração
 
-Extraí cada regra para sua própria classe, atrás de uma interface abstrata específica, e ProductionBatch passou a receber essas regras por injeção no construtor (com uma implementação padrão caso nada seja passado), em vez de implementá-las internamente:
+**Commit "depois":** [`6140ef5`](../../commit/6140ef5) — `refactor: extrai regras de qualidade do ProductionBatch em classes Strategy (SRP/OCP)`.
 
-python
+Extraí cada regra para sua própria classe, atrás de uma interface abstrata
+específica, e `ProductionBatch` passou a receber essas regras por injeção no
+construtor (com uma implementação padrão caso nada seja passado), em vez de
+implementá-las internamente:
+
+```python
 class WettabilityRule(ABC):
     @abstractmethod
     def check(self, batch: "ProductionBatch") -> Optional[str]:
@@ -188,21 +208,59 @@ class WettabilityMustBeApprovedRule(WettabilityRule):
         if batch.wettability_result != TestResult.APPROVED:
             return "Wettability test not approved."
         return None
+```
 
-O mesmo padrão foi aplicado às outras três regras (SampleWeightRule / WeightToleranceRule, LecithinizationRule / MandatoryLecithinizationForGoatMilkRule, MilkTypeConflictRule / SameDayDifferentMilkTypeRule). ProductionBatch passou a chamar self.wettability_rule.check(self) (e equivalentes) em vez de ter a condição escrita no próprio método — e wettability_rule é uma @property que usa a regra injetada, ou cai para um padrão de classe quando nenhuma foi passada (ver "custo", abaixo, sobre por que isso não é feito só no __init__).
+O mesmo padrão foi aplicado às outras três regras (`SampleWeightRule` /
+`WeightToleranceRule`, `LecithinizationRule` /
+`MandatoryLecithinizationForGoatMilkRule`, `MilkTypeConflictRule` /
+`SameDayDifferentMilkTypeRule`). `ProductionBatch` passou a chamar
+`self.wettability_rule.check(self)` (e equivalentes) em vez de ter a
+condição escrita no próprio método — e `wettability_rule` é uma `@property`
+que usa a regra injetada, ou cai para um padrão de classe quando nenhuma foi
+passada (ver "custo", abaixo, sobre por que isso não é feito só no
+`__init__`).
 
-Com isso, uma regra nova ou uma variação de regra existente (ex.: tolerância de peso diferente para uma linha de produto) entra como uma nova classe que implementa a interface correspondente, injetada na criação do lote — sem tocar em ProductionBatch nem nas regras já existentes e testadas.
+Com isso, uma regra nova ou uma variação de regra existente (ex.: tolerância
+de peso diferente para uma linha de produto) entra como uma nova classe que
+implementa a interface correspondente, injetada na criação do lote — sem
+tocar em `ProductionBatch` nem nas regras já existentes e testadas.
 
-Como os testes garantiram que o comportamento não mudou
-A suíte de testes unitários do agregado antes da mudança: 43 passed (pytest tests/unit/test_production_batch.py -q, commit <HASH-ANTES>).
-Depois da mudança: 44 passed — os mesmos 43 testes continuam verdes, sem nenhuma alteração nas próprias asserções, mais um teste novo.
-O teste novo, test_release_behavior_can_be_extended_via_injected_rule_without_modifying_production_batch (tests/unit/test_production_batch.py), injeta uma AlwaysApprovedWettabilityRule (uma subclasse de WettabilityRule escrita só para o teste, fora de ProductionBatch) e comprova que um lote com wettability_result ainda PENDING — que, com a regra padrão, reprovaria o lote (test_batch_with_pending_wettability_is_non_conforming_on_release) — é liberado normalmente quando essa regra é trocada. Ou seja, prova que o comportamento de aprovação hoje vem da regra injetada, não de uma condição fixa dentro de release(). Sem a refatoração, esse teste não seria possível: no código "antes" não existe nenhum ponto de extensão — a condição if self.wettability_result != TestResult.APPROVED está hard-coded dentro do método, e mudar esse comportamento exigiria editar ProductionBatch diretamente.
-Também foi necessário um ajuste de compatibilidade com o mapeamento imperativo do SQLAlchemy: um ProductionBatch recarregado do banco não passa pelo __init__ (o SQLAlchemy reconstrói o objeto direto a partir das colunas), então as quatro regras passaram a ser expostas por @property com getattr(self, "_regra", <regra_padrão_da_classe>), em vez de depender apenas do que foi atribuído em __init__. Os testes e2e que liberam lotes recarregados do banco (tests/e2e/test_production_batches_api.py) continuaram passando sem alteração depois desse ajuste, confirmando que a regra padrão é aplicada corretamente também para objetos vindos do banco.
-O custo e por que compensa
+### Como os testes garantiram que o comportamento não mudou
 
-Custo: quatro novas interfaces (SampleWeightRule, LecithinizationRule, MilkTypeConflictRule, WettabilityRule) e quatro implementações padrão, em vez de quatro condições inline. ProductionBatch ganhou quatro parâmetros opcionais no construtor e quatro @property para resolver a regra efetiva (injetada ou padrão).
+- Suíte completa do projeto (`pytest tests/ -q`), rodada localmente em cada
+  commit: **174 passed** no commit `2499f78` ("antes") e **174 passed** no
+  commit `6140ef5` ("depois") — exatamente os mesmos testes, nenhuma
+  asserção alterada, confirmando que a refatoração não mudou nenhum
+  comportamento observável do sistema.
+- A refatoração em si não acrescentou um teste novo que provasse a
+  substituibilidade das regras (por isso a contagem fica idêntica nos dois
+  commits). Essa prova explícita — injetar uma estratégia diferente e
+  observar o `ProductionBatch` mudar de comportamento sem ser modificado —
+  foi feita no checkpoint seguinte, já que o mesmo Strategy extraído aqui é
+  o padrão GoF documentado em `docs/gof.md`: ver lá os testes de
+  `tests/unit/test_production_batch_strategy_pattern.py` (commit `40e24a8`),
+  que elevam a contagem da suíte completa de 180 para **185 passed**.
 
-Por que compensa: o custo é oito classes pequenas e sem estado mutável relevante (cada uma com um único método, check); o que ele evita é editar ProductionBatch — a Aggregate Root do agregado, coberta por 44 testes unitários e pelos testes e2e da API — toda vez que uma regra de qualidade muda ou uma nova é adicionada. Na mesma lógica de custo de modificabilidade discutida para o CollectionPoint, o ganho aqui é concentrar uma mudança de regra de negócio em uma classe nova e isolada, em vez de um if a mais dentro de um método já testado do agregado central. Como a PROPOSTA.md já aponta o Lote de Produção como o agregado com mais regras de negócio específicas por tipo de produto, essa é uma mudança com probabilidade concreta de se repetir ao longo da Fase 2.
+### O custo e por que compensa
+
+**Custo:** quatro novas interfaces (`SampleWeightRule`, `LecithinizationRule`,
+`MilkTypeConflictRule`, `WettabilityRule`) e quatro implementações padrão,
+em vez de quatro condições inline. `ProductionBatch` ganhou quatro
+parâmetros opcionais no construtor e quatro `@property` para resolver a
+regra efetiva (injetada ou padrão).
+
+**Por que compensa:** o custo é oito classes pequenas e sem estado mutável
+relevante (cada uma com um único método, `check`); o que ele evita é editar
+`ProductionBatch` — a Aggregate Root do agregado, coberta pela suíte de 174
+testes do projeto — toda vez que uma regra de qualidade muda ou uma nova é
+adicionada. Na mesma lógica de custo de modificabilidade discutida para o
+`CollectionPoint`, o ganho aqui é concentrar uma mudança de regra de negócio
+em uma classe nova e isolada, em vez de um `if` a mais dentro de um método
+já testado do agregado central. Como a `PROPOSTA.md` já aponta o Lote de
+Produção como o agregado com mais regras de negócio específicas por tipo de
+produto, essa é uma mudança com probabilidade concreta de se repetir ao
+longo da Fase 2.
+
 ---
 
 ## Lucas Ardelino Alves da Silva — `RawMaterialReceipt` (agregado de recebimento)
